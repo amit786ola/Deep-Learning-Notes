@@ -522,4 +522,2847 @@ prob = sigmoid(z)
 # Apply threshold for classification
 y_pred = 1 if prob >= 0.5 else 0
 
-# Note: threshold of 0.5 correspon
+# Note: threshold of 0.5 corresponds to z=0
+# You can choose other thresholds based on precision/recall tradeoff
+
+6.6 Loss Function for Sigmoid Neuron — Binary Cross-Entropy
+For one sample:
+L(y, ŷ) = -[y * log(ŷ) + (1-y) * log(1-ŷ)]
+
+For dataset:
+L = -(1/n) * Σ [yi * log(ŷi) + (1-yi) * log(1-ŷi)]
+Why cross-entropy?
+
+Derived from Maximum Likelihood Estimation (MLE) under Bernoulli distribution
+Penalizes confident wrong predictions heavily
+Smooth and differentiable
+
+
+6.7 Code — Sigmoid Neuron
+pythonimport numpy as np
+
+class SigmoidNeuron:
+    def __init__(self, learning_rate=0.01, n_epochs=1000):
+        self.lr = learning_rate
+        self.n_epochs = n_epochs
+        self.weights = None
+        self.bias = None
+        self.loss_history = []
+    
+    def sigmoid(self, z):
+        # Clip to prevent overflow
+        z = np.clip(z, -500, 500)
+        return 1 / (1 + np.exp(-z))
+    
+    def binary_cross_entropy(self, y_true, y_pred):
+        # Clip predictions to avoid log(0)
+        y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
+        return -np.mean(y_true * np.log(y_pred) + 
+                        (1 - y_true) * np.log(1 - y_pred))
+    
+    def fit(self, X, y):
+        n_samples, n_features = X.shape
+        self.weights = np.zeros(n_features)
+        self.bias = 0
+        
+        for epoch in range(self.n_epochs):
+            # Forward pass
+            z = np.dot(X, self.weights) + self.bias
+            y_pred = self.sigmoid(z)
+            
+            # Compute loss
+            loss = self.binary_cross_entropy(y, y_pred)
+            self.loss_history.append(loss)
+            
+            # Gradient computation (chain rule)
+            # dL/dz = y_pred - y  (for cross-entropy + sigmoid)
+            error = y_pred - y
+            
+            # Gradient w.r.t. weights and bias
+            dW = np.dot(X.T, error) / n_samples
+            db = np.mean(error)
+            
+            # Gradient descent update
+            self.weights -= self.lr * dW
+            self.bias -= self.lr * db
+            
+            if epoch % 100 == 0:
+                print(f"Epoch {epoch}: Loss = {loss:.4f}")
+    
+    def predict_proba(self, X):
+        z = np.dot(X, self.weights) + self.bias
+        return self.sigmoid(z)
+    
+    def predict(self, X, threshold=0.5):
+        return (self.predict_proba(X) >= threshold).astype(int)
+    
+    def accuracy(self, X, y):
+        return np.mean(self.predict(X) == y)
+
+6.8 Interview Questions — Day 6
+Q1: Why use sigmoid instead of step function?
+
+The sigmoid is differentiable everywhere, enabling gradient-based learning. Its output (probability) provides a smooth learning signal. With the step function, gradients are zero almost everywhere — making learning impossible via backpropagation.
+
+Q2: What is the derivative of the sigmoid function and why is it important?
+
+σ'(z) = σ(z) * (1 - σ(z)). This elegant form allows efficient computation during backpropagation. The gradient is maximum at z=0 (value = 0.25) and approaches 0 at extremes — this causes the vanishing gradient problem.
+
+Q3: What is the vanishing gradient problem with sigmoid?
+
+When z is very large or very small, σ'(z) ≈ 0. In deep networks, multiplying many near-zero gradients during backprop results in negligibly small gradient updates for early layers — they learn very slowly or not at all.
+
+Q4: Why is cross-entropy preferred over MSE for classification?
+
+Cross-entropy is derived from MLE and is naturally suited for probability outputs. It penalizes confident wrong predictions more severely than MSE. For sigmoid output + MSE, the loss landscape has many local minima; cross-entropy creates a convex loss surface for logistic regression.
+
+
+
+📅 DAY 7 — Gradient Descent for Sigmoid Neuron
+7.1 What is Gradient Descent?
+An iterative optimization algorithm to minimize the loss function by updating parameters in the opposite direction of the gradient.
+θ_new = θ_old - η * ∂L/∂θ
+
+Where:
+  θ = parameters (weights & bias)
+  η = learning rate
+  ∂L/∂θ = gradient of loss w.r.t. parameters
+Analogy
+
+Imagine being blindfolded on a hilly terrain. You want to reach the valley (minimum loss). Gradient tells you the direction of steepest ascent. You step in the OPPOSITE direction (steepest descent). Each step size = learning rate.
+
+
+7.2 Derivation of Gradients for Sigmoid + Cross-Entropy
+Given:
+z = W·X + b
+ŷ = σ(z) = 1/(1 + e^(-z))
+L = -[y*log(ŷ) + (1-y)*log(1-ŷ)]
+Chain rule:
+∂L/∂W = ∂L/∂ŷ * ∂ŷ/∂z * ∂z/∂W
+
+∂L/∂ŷ = -y/ŷ + (1-y)/(1-ŷ)
+∂ŷ/∂z = σ(z)(1 - σ(z)) = ŷ(1-ŷ)
+∂z/∂W = X
+
+∂L/∂W = [-y/ŷ + (1-y)/(1-ŷ)] * ŷ(1-ŷ) * X
+       = (ŷ - y) * X   ← Beautiful simplification!
+
+∂L/∂b = ŷ - y
+Key Insight: Gradient = (prediction - true label) × input. Clean and elegant!
+
+7.3 Learning Rate Effects
+Learning RateEffectToo small (0.0001)Very slow convergence, may get stuckToo large (10.0)Oscillates, may diverge, overshoots minimumJust right (0.01–0.1)Smooth convergence to minimum
+
+7.4 Types of Gradient Descent
+Batch Gradient Descent
+
+Use ALL training samples to compute gradient per update
+Stable but slow for large datasets
+Update: W ← W - η * (1/n) * Σ (ŷ_i - y_i) * x_i
+
+Stochastic Gradient Descent (SGD)
+
+Use ONE sample per update
+Noisy but fast, escapes local minima
+Update: W ← W - η * (ŷ_i - y_i) * x_i
+
+Mini-Batch Gradient Descent
+
+Use a BATCH (e.g., 32, 64, 128 samples) per update
+Best of both worlds — most widely used in deep learning
+Update: W ← W - η * (1/batch_size) * Σ (ŷ_i - y_i) * x_i
+
+Comparison:
+                Batch GD    SGD        Mini-Batch GD
+Convergence:    Stable      Noisy      Moderately stable
+Speed:          Slow        Fast       Fast
+Memory:         Full data   1 sample   Batch size
+Used in DL:     Rarely      Rarely     Always
+
+7.5 Loss Curve Interpretation
+Loss
+  |
+5 |*
+  | *
+3 |   **
+  |      ***
+1 |         ****_____  ← Converged
+  |_________________________ Epochs
+  0   10   50   100   200
+
+Steep drop initially → large gradients, fast learning
+Flattening → approaching minimum
+If loss oscillates → learning rate too high
+If loss barely decreases → learning rate too low
+
+
+7.6 Interview Questions — Day 7
+Q1: What is gradient descent? How does it work?
+
+Gradient descent minimizes the loss function by iteratively updating parameters in the direction opposite to the gradient. The gradient points in the direction of steepest increase, so moving against it decreases the loss.
+
+Q2: What is the difference between Batch, SGD, and Mini-batch GD?
+
+Batch GD uses all data per update (stable, slow). SGD uses one sample (fast, noisy, escapes local minima). Mini-batch uses a subset (balance of both). Deep learning almost always uses mini-batch.
+
+Q3: What happens if the learning rate is too high?
+
+The optimizer overshoots the minimum, causing the loss to oscillate or even diverge. The parameter updates are too large, causing the algorithm to "jump over" the minimum repeatedly.
+
+Q4: Can gradient descent get stuck in local minima?
+
+Yes, but in practice for deep networks, local minima are rarely an issue — most local minima have similar loss to global minimum (empirical finding). Saddle points (where gradient=0 but not minimum) are more problematic. SGD's noise helps escape saddle points.
+
+
+
+📅 DAY 8 — Sigmoid Neuron — Full Implementation
+8.1 Complete Pipeline
+pythonimport numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, classification_report
+
+class SigmoidNeuronComplete:
+    """
+    Complete Sigmoid Neuron implementation with:
+    - Forward pass
+    - Cross-entropy loss
+    - Gradient descent (mini-batch)
+    - Training history
+    - Prediction with threshold tuning
+    """
+    
+    def __init__(self, learning_rate=0.01, n_epochs=500, batch_size=32):
+        self.lr = learning_rate
+        self.n_epochs = n_epochs
+        self.batch_size = batch_size
+        self.weights = None
+        self.bias = None
+        self.train_loss = []
+        self.val_loss = []
+    
+    def sigmoid(self, z):
+        z = np.clip(z, -500, 500)  # numerical stability
+        return 1 / (1 + np.exp(-z))
+    
+    def loss(self, y_true, y_pred):
+        y_pred = np.clip(y_pred, 1e-10, 1 - 1e-10)
+        return -np.mean(y_true * np.log(y_pred) + 
+                        (1 - y_true) * np.log(1 - y_pred))
+    
+    def fit(self, X_train, y_train, X_val=None, y_val=None):
+        n_samples, n_features = X_train.shape
+        # Xavier initialization for better convergence
+        self.weights = np.random.randn(n_features) * np.sqrt(1 / n_features)
+        self.bias = 0.0
+        
+        for epoch in range(self.n_epochs):
+            # Shuffle training data
+            idx = np.random.permutation(n_samples)
+            X_shuffled = X_train[idx]
+            y_shuffled = y_train[idx]
+            
+            # Mini-batch gradient descent
+            for start in range(0, n_samples, self.batch_size):
+                X_batch = X_shuffled[start:start + self.batch_size]
+                y_batch = y_shuffled[start:start + self.batch_size]
+                
+                # Forward pass
+                z = np.dot(X_batch, self.weights) + self.bias
+                y_pred = self.sigmoid(z)
+                
+                # Compute gradients
+                error = y_pred - y_batch
+                dW = np.dot(X_batch.T, error) / len(X_batch)
+                db = np.mean(error)
+                
+                # Update parameters
+                self.weights -= self.lr * dW
+                self.bias -= self.lr * db
+            
+            # Record loss
+            train_pred = self.sigmoid(np.dot(X_train, self.weights) + self.bias)
+            self.train_loss.append(self.loss(y_train, train_pred))
+            
+            if X_val is not None:
+                val_pred = self.sigmoid(np.dot(X_val, self.weights) + self.bias)
+                self.val_loss.append(self.loss(y_val, val_pred))
+    
+    def predict_proba(self, X):
+        z = np.dot(X, self.weights) + self.bias
+        return self.sigmoid(z)
+    
+    def predict(self, X, threshold=0.5):
+        return (self.predict_proba(X) >= threshold).astype(int)
+    
+    def plot_loss(self):
+        plt.figure(figsize=(10, 4))
+        plt.plot(self.train_loss, label='Train Loss')
+        if self.val_loss:
+            plt.plot(self.val_loss, label='Val Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training History')
+        plt.legend()
+        plt.show()
+
+
+# Real-world example: Breast Cancer Classification
+data = load_breast_cancer()
+X, y = data.data, data.target
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42)
+X_train, X_val, y_train, y_val = train_test_split(
+    X_train, y_train, test_size=0.2, random_state=42)
+
+# CRITICAL: Scale features for gradient descent to work properly
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_val = scaler.transform(X_val)
+X_test = scaler.transform(X_test)
+
+model = SigmoidNeuronComplete(learning_rate=0.1, n_epochs=200, batch_size=32)
+model.fit(X_train, y_train, X_val, y_val)
+
+print(f"Test Accuracy: {accuracy_score(y_test, model.predict(X_test)):.4f}")
+print(classification_report(y_test, model.predict(X_test)))
+model.plot_loss()
+
+8.2 Key Implementation Notes
+
+Feature Scaling is CRITICAL — Gradient descent converges much faster with scaled features (StandardScaler or MinMaxScaler).
+Numerical Stability — Clip sigmoid inputs and log arguments to avoid NaN/Inf.
+Shuffle data — Always shuffle before each epoch for mini-batch GD.
+Monitor validation loss — To detect overfitting early (train loss keeps dropping, val loss starts rising).
+
+
+8.3 Interview Questions — Day 8
+Q1: Why is feature scaling important for gradient descent?
+
+Without scaling, features with large ranges dominate the gradient updates, causing slow convergence and oscillation. Scaled features create a more spherical loss landscape, allowing gradient descent to converge faster and more stably.
+
+Q2: What is the difference between predict() and predict_proba()?
+
+predict_proba() returns probability scores (output of sigmoid). predict() applies a threshold (typically 0.5) to convert probabilities to class labels. You can adjust the threshold based on the precision/recall tradeoff needed.
+
+
+
+📅 DAY 9 — ANN (Artificial Neural Network) — Architecture
+9.1 Why Go Beyond Single Neuron?
+Single neuron (Perceptron/Sigmoid Neuron) can only model linear decision boundaries. Real-world data is non-linear.
+Solution: Stack multiple neurons in layers → Multi-Layer Perceptron (MLP) / ANN.
+
+9.2 ANN Architecture
+         INPUT LAYER    HIDDEN LAYER(S)    OUTPUT LAYER
+         
+         [x1] ─────────→ [n1] ─────────→ 
+         [x2] ─────────→ [n2] ─────────→  [output]
+         [x3] ─────────→ [n3] ─────────→ 
+         [x4]            [n4]
+         
+         (4 neurons)   (4 neurons)       (1 neuron)
+Layers Defined
+LayerDescriptionInput LayerPasses raw features. Number of neurons = number of features. No computation.Hidden Layer(s)Learn intermediate representations. Where the "magic" happens.Output LayerProduces final prediction. Architecture depends on task.
+Fully Connected (Dense) Layer
+
+Every neuron in layer l is connected to every neuron in layer l+1
+Also called "Dense" layer in Keras
+
+
+9.3 Output Layer Design
+TaskOutput NeuronsActivationBinary Classification1SigmoidMulticlass (K classes)KSoftmaxRegression1Linear (None)Multi-labelKSigmoid (per neuron)
+
+9.4 How ANNs Create Non-Linear Boundaries
+Each hidden layer applies a non-linear activation function, allowing the network to learn complex, non-linear decision boundaries:
+Layer 1: Learns simple patterns (lines/edges)
+Layer 2: Combines patterns (shapes)
+Layer 3: Combines shapes (objects)
+...
+Output: Predicts class/value
+
+Universal Approximation Theorem:
+"A single hidden layer with enough neurons can approximate any continuous function."
+
+9.5 ANN Hyperparameters
+HyperparameterDescriptionTypical ValuesNumber of hidden layersDepth of network1–5 for tabular; more for CNN/RNNNeurons per layerWidth of network32, 64, 128, 256, 512Activation functionNon-linearityReLU (hidden), Sigmoid/Softmax (output)Learning rateStep size0.001–0.01Batch sizeSamples per update32, 64, 128OptimizerGD variantAdam, SGD, RMSPropRegularizationPrevent overfittingDropout, L1, L2
+
+9.6 Parameter Count
+For a network with architecture [784 → 128 → 64 → 10]:
+Layer 1 (784→128): 784 * 128 + 128 (bias) = 100,480 parameters
+Layer 2 (128→64):  128 * 64  + 64  (bias) = 8,256 parameters
+Layer 3 (64→10):   64  * 10  + 10  (bias) = 650 parameters
+                                     Total = 109,386 parameters!
+
+9.7 Interview Questions — Day 9
+Q1: What is the Universal Approximation Theorem?
+
+A feedforward ANN with a single hidden layer containing a finite number of neurons with a non-linear activation function can approximate any continuous function to arbitrary precision. This justifies why neural networks are so powerful.
+
+Q2: How do you decide the number of hidden layers and neurons?
+
+Start simple (1-2 layers, 64-256 neurons). Use validation loss to guide decisions. More complex problems need deeper/wider networks. Rule of thumb: each hidden layer should have between input_size and output_size neurons. Cross-validation and neural architecture search are more rigorous approaches.
+
+Q3: Why do we need non-linear activation functions in hidden layers?
+
+Without non-linearity, stacking multiple linear layers is equivalent to a single linear layer (composition of linear functions is linear). Non-linear activations allow the network to learn complex, non-linear relationships in data.
+
+Q4: What is the difference between width and depth of a network?
+
+Width = number of neurons per layer. Depth = number of layers. Deeper networks can learn more abstract hierarchical representations with fewer total parameters. Wider networks can capture more patterns at the same level of abstraction. Both affect capacity.
+
+
+
+📅 DAY 10 — Activation Functions
+10.1 Why Activation Functions?
+Without activation functions, a neural network is just linear regression (output = linear combination of inputs). Activation functions introduce non-linearity, enabling networks to learn complex patterns.
+
+10.2 Sigmoid
+σ(z) = 1 / (1 + e^(-z))
+Range: (0, 1)
+Derivative: σ(z)(1 - σ(z))  ← max value 0.25
+
+Pros:
+  ✓ Output interpretable as probability
+  ✓ Differentiable everywhere
+
+Cons:
+  ✗ Vanishing gradient (saturates at extremes)
+  ✗ Not zero-centered (all positive outputs → slow convergence)
+  ✗ Computationally expensive (exp operation)
+  
+Use: Output layer for binary classification ONLY
+
+10.3 Tanh (Hyperbolic Tangent)
+tanh(z) = (e^z - e^(-z)) / (e^z + e^(-z))
+Range: (-1, 1)
+Derivative: 1 - tanh²(z)  ← max value 1.0
+
+Pros:
+  ✓ Zero-centered (positive and negative outputs)
+  ✓ Stronger gradient than sigmoid
+  ✓ Better than sigmoid for hidden layers
+
+Cons:
+  ✗ Still vanishing gradient at extremes
+  ✗ Computationally expensive
+
+Use: Hidden layers in RNNs; generally replaced by ReLU
+
+10.4 ReLU (Rectified Linear Unit) ⭐ Most Popular
+ReLU(z) = max(0, z)
+Range: [0, ∞)
+Derivative: { 1  if z > 0
+            { 0  if z ≤ 0
+
+Pros:
+  ✓ No vanishing gradient for z > 0
+  ✓ Computationally very efficient (just max operation)
+  ✓ Sparsity (many neurons output 0 → efficient)
+  ✓ Faster convergence than sigmoid/tanh
+
+Cons:
+  ✗ Dying ReLU: neurons permanently output 0 if z always < 0
+  ✗ Not zero-centered
+  ✗ Unbounded (no saturation on positive side)
+
+Use: Default choice for hidden layers in most modern networks
+Why ReLU was a Breakthrough (2012)
+
+Solved vanishing gradient for positive activations
+Enabled training much deeper networks
+AlexNet (2012) used ReLU and dramatically outperformed sigmoid-based networks
+
+
+10.5 Leaky ReLU
+LeakyReLU(z) = { z      if z > 0
+               { 0.01z  if z ≤ 0
+
+Solves Dying ReLU problem by allowing small negative gradient.
+α = 0.01 is standard; can be learned (Parametric ReLU).
+
+10.6 ELU (Exponential Linear Unit)
+ELU(z) = { z           if z > 0
+         { α(e^z - 1)  if z ≤ 0
+
+Pros: Zero-centered, smooth, avoids dying ReLU
+Cons: Computationally more expensive than ReLU
+
+10.7 Softmax (Output Layer — Multiclass)
+softmax(zi) = e^zi / Σ e^zj  (sum over all output neurons j)
+
+Properties:
+  ✓ All outputs sum to 1 → probability distribution
+  ✓ Amplifies largest value (compared to others)
+  ✓ Differentiable
+
+Use: Output layer ONLY for multiclass classification
+Example:
+Raw logits:  [2.0, 1.0, 0.1]
+After softmax: [0.659, 0.242, 0.099]  ← sum = 1.0
+Predicted class: 0 (highest probability)
+
+10.8 Activation Function Comparison
+Function  | Range      | Vanishing Grad | Zero-centered | Use
+----------|------------|----------------|---------------|------------------
+Step      | {0, 1}     | Yes (always)   | No            | Perceptron only
+Sigmoid   | (0, 1)     | Yes            | No            | Binary output
+Tanh      | (-1, 1)    | Yes            | Yes           | RNN hidden
+ReLU      | [0, ∞)     | No (positive)  | No            | Default hidden
+Leaky     | (-∞, ∞)    | No             | No            | Alternative hidden
+Softmax   | (0,1),Σ=1  | -              | -             | Multiclass output
+
+10.9 Code — All Activation Functions
+pythonimport numpy as np
+import matplotlib.pyplot as plt
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-np.clip(z, -500, 500)))
+
+def sigmoid_derivative(z):
+    s = sigmoid(z)
+    return s * (1 - s)
+
+def tanh(z):
+    return np.tanh(z)
+
+def tanh_derivative(z):
+    return 1 - np.tanh(z)**2
+
+def relu(z):
+    return np.maximum(0, z)
+
+def relu_derivative(z):
+    return (z > 0).astype(float)
+
+def leaky_relu(z, alpha=0.01):
+    return np.where(z > 0, z, alpha * z)
+
+def leaky_relu_derivative(z, alpha=0.01):
+    return np.where(z > 0, 1, alpha)
+
+def softmax(z):
+    # Subtract max for numerical stability
+    exp_z = np.exp(z - np.max(z, axis=-1, keepdims=True))
+    return exp_z / np.sum(exp_z, axis=-1, keepdims=True)
+
+# Plot all activation functions
+z = np.linspace(-5, 5, 1000)
+
+fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+
+functions = [
+    (sigmoid, sigmoid_derivative, "Sigmoid"),
+    (tanh, tanh_derivative, "Tanh"),
+    (relu, relu_derivative, "ReLU"),
+    (leaky_relu, leaky_relu_derivative, "Leaky ReLU"),
+]
+
+for idx, (fn, fn_d, name) in enumerate(functions):
+    ax = axes[idx // 3][idx % 3]
+    ax.plot(z, fn(z), 'b-', linewidth=2, label=name)
+    ax.plot(z, fn_d(z), 'r--', linewidth=2, label=f"d/dz {name}")
+    ax.axhline(y=0, color='k', linestyle='-', linewidth=0.5)
+    ax.axvline(x=0, color='k', linestyle='-', linewidth=0.5)
+    ax.set_title(name)
+    ax.legend()
+    ax.grid(True)
+
+plt.tight_layout()
+plt.show()
+
+10.10 Interview Questions — Day 10
+Q1: Why is ReLU preferred over sigmoid in hidden layers?
+
+ReLU has no vanishing gradient for positive inputs (gradient = 1), enabling deeper networks to train effectively. It's computationally cheaper (no exp), converges faster, and promotes sparsity. Sigmoid saturates at extremes giving near-zero gradients.
+
+Q2: What is the Dying ReLU problem?
+
+When a neuron's input is always negative (z < 0), ReLU outputs 0 and has 0 gradient. The neuron never updates — it "dies." Causes: high learning rates, bad initialization. Fix: Leaky ReLU, ELU, careful initialization, lower learning rate.
+
+Q3: When should you use softmax?
+
+Only in the output layer for mutually exclusive multi-class classification (one correct class). Not for multi-label problems (use sigmoid per output) or binary problems (use sigmoid with 1 output or softmax with 2 outputs).
+
+Q4: What is the difference between sigmoid and softmax?
+
+Sigmoid operates independently on each neuron (outputs don't sum to 1). Softmax normalizes across all neurons, ensuring outputs form a probability distribution (sum = 1). For binary classification, sigmoid on 1 output ≡ softmax on 2 outputs.
+
+
+
+📅 DAY 11 — Forward Propagation
+11.1 What is Forward Propagation?
+The process of passing input through all layers of the neural network to produce an output (prediction).
+Flow: Input → Hidden Layers → Output → Loss
+
+11.2 Mathematics of Forward Propagation
+For a network with L layers:
+Layer l computation:
+  Z[l] = W[l] · A[l-1] + b[l]     ← Linear transformation
+  A[l] = g[l](Z[l])                ← Activation function
+
+Where:
+  A[0] = X  (input layer)
+  W[l] = weight matrix for layer l
+  b[l] = bias vector for layer l
+  g[l] = activation function for layer l
+  Z[l] = pre-activation (logits)
+  A[l] = post-activation output
+Dimensions (CRITICAL for debugging)
+For architecture [n0 → n1 → n2 → n3]:
+W[1] shape: (n1, n0)   → (hidden1_size, input_size)
+b[1] shape: (n1, 1)    → (hidden1_size, 1)
+Z[1] shape: (n1, m)    → (hidden1_size, n_samples)
+A[1] shape: (n1, m)    → same as Z[1]
+
+W[2] shape: (n2, n1)
+W[3] shape: (n3, n2)   → Output layer
+
+11.3 Example: Forward Pass Through 3-Layer Network
+Network: 2 → 3 → 1
+Input X = [[1], [2]] (2 features, 1 sample)
+
+Layer 1 (hidden):
+  W1 = [[0.1, 0.2],    b1 = [[0.1],
+         [0.3, 0.4],          [0.2],
+         [0.5, 0.6]]          [0.3]]
+  Z1 = W1 @ X + b1
+  A1 = ReLU(Z1)
+
+Layer 2 (output):
+  W2 = [[0.7, 0.8, 0.9]]   b2 = [[0.1]]
+  Z2 = W2 @ A1 + b2
+  A2 = Sigmoid(Z2)    ← probability output
+
+11.4 Code — Forward Propagation
+pythonimport numpy as np
+
+def forward_propagation(X, parameters):
+    """
+    Complete forward propagation for L-layer network.
+    
+    Parameters:
+        X: Input (n_features, m_samples)
+        parameters: dict with W1, b1, W2, b2, ..., WL, bL
+    
+    Returns:
+        AL: Final output
+        cache: All intermediate values (needed for backprop)
+    """
+    caches = []
+    A = X          # A[0] = input
+    L = len(parameters) // 2  # number of layers
+    
+    # Hidden layers with ReLU
+    for l in range(1, L):
+        A_prev = A
+        W = parameters[f'W{l}']
+        b = parameters[f'b{l}']
+        
+        # Linear transformation
+        Z = np.dot(W, A_prev) + b
+        
+        # ReLU activation
+        A = np.maximum(0, Z)
+        
+        # Cache for backprop
+        caches.append((A_prev, W, b, Z))
+    
+    # Output layer with Sigmoid
+    W = parameters[f'W{L}']
+    b = parameters[f'b{L}']
+    Z = np.dot(W, A) + b
+    AL = 1 / (1 + np.exp(-Z))  # Sigmoid
+    caches.append((A, W, b, Z))
+    
+    return AL, caches
+
+
+def initialize_parameters(layer_dims):
+    """
+    Initialize parameters using He initialization for ReLU.
+    
+    layer_dims: list of layer sizes, e.g. [784, 128, 64, 1]
+    """
+    parameters = {}
+    L = len(layer_dims) - 1
+    
+    for l in range(1, L + 1):
+        # He initialization: scale by sqrt(2/prev_layer_size)
+        parameters[f'W{l}'] = (np.random.randn(layer_dims[l], layer_dims[l-1]) 
+                                * np.sqrt(2 / layer_dims[l-1]))
+        parameters[f'b{l}'] = np.zeros((layer_dims[l], 1))
+    
+    return parameters
+
+# Test
+layer_dims = [3, 4, 3, 1]  # 3 features → 4 → 3 → 1 output
+parameters = initialize_parameters(layer_dims)
+X = np.random.randn(3, 5)  # 3 features, 5 samples
+output, caches = forward_propagation(X, parameters)
+print(f"Output shape: {output.shape}")  # (1, 5) — one prediction per sample
+
+11.5 Interview Questions — Day 11
+Q1: Walk me through forward propagation step by step.
+
+For each layer l: compute Z[l] = W[l]·A[l-1] + b[l] (linear combination), then A[l] = g(Z[l]) (apply activation). Repeat from input to output. The final output is the network's prediction, compared against true label to compute loss.
+
+Q2: Why do we cache intermediate values during forward prop?
+
+The cached Z[l] and A[l-1] values are needed during backpropagation to compute gradients efficiently (chain rule requires these intermediate values). Without caching, we'd have to recompute them, doubling computation.
+
+Q3: What's the correct shape of weight matrices?
+
+W[l] has shape (n[l], n[l-1]) — rows = neurons in current layer, columns = neurons in previous layer. This allows Z[l] = W[l]·A[l-1] to have shape (n[l], m) where m = batch size.
+
+
+
+📅 DAY 12 — Loss Functions for Neural Networks
+12.1 Role of Loss Functions
+The loss function measures how far the network's predictions are from the true labels. It's the quantity we minimize during training.
+Properties of a good loss function:
+
+Differentiable (needed for backprop)
+Properly penalizes errors
+Matches the output distribution of the task
+
+
+12.2 Regression Losses
+Mean Squared Error (MSE)
+MSE = (1/n) * Σ (yi - ŷi)²
+
+Pros: Differentiable, penalizes large errors more (squared)
+Cons: Sensitive to outliers, not interpretable in original units
+Mean Absolute Error (MAE)
+MAE = (1/n) * Σ |yi - ŷi|
+
+Pros: Robust to outliers, interpretable in original units
+Cons: Not differentiable at 0, no penalty gradient near truth
+Huber Loss
+Huber(δ) = { (1/2)(y-ŷ)²         if |y-ŷ| ≤ δ
+           { δ*|y-ŷ| - δ²/2      if |y-ŷ| > δ
+
+Best of both: MSE for small errors, MAE for large errors
+
+12.3 Classification Losses
+Binary Cross-Entropy (Log Loss)
+For binary classification (1 output, sigmoid):
+L = -(1/n) * Σ [yi*log(ŷi) + (1-yi)*log(1-ŷi)]
+
+Properties:
+  - Derived from MLE under Bernoulli assumption
+  - Heavily penalizes confident wrong predictions
+  - log(0) → -∞ (clip predictions to avoid this)
+Categorical Cross-Entropy
+For multiclass (K outputs, softmax):
+L = -(1/n) * Σ Σ yij * log(ŷij)
+              i  j
+
+In one-hot encoding: reduces to -log(predicted prob of true class)
+Sparse Categorical Cross-Entropy
+
+Same as categorical cross-entropy, but labels are integer class indices (not one-hot)
+Memory efficient for large number of classes
+
+
+12.4 Loss vs Metric
+TermDefinitionExampleLossDifferentiable objective optimized during trainingCross-entropyMetricEvaluation measure (may not be differentiable)Accuracy, F1, AUC
+We optimize the loss, but report the metric.
+
+12.5 Code — Loss Functions
+pythonimport numpy as np
+
+def mse_loss(y_true, y_pred):
+    return np.mean((y_true - y_pred) ** 2)
+
+def mae_loss(y_true, y_pred):
+    return np.mean(np.abs(y_true - y_pred))
+
+def binary_crossentropy(y_true, y_pred):
+    y_pred = np.clip(y_pred, 1e-10, 1 - 1e-10)
+    return -np.mean(y_true * np.log(y_pred) + 
+                    (1 - y_true) * np.log(1 - y_pred))
+
+def categorical_crossentropy(y_true_onehot, y_pred_softmax):
+    """
+    y_true_onehot: one-hot encoded labels (n_samples, n_classes)
+    y_pred_softmax: softmax outputs (n_samples, n_classes)
+    """
+    y_pred_softmax = np.clip(y_pred_softmax, 1e-10, 1.0)
+    return -np.mean(np.sum(y_true_onehot * np.log(y_pred_softmax), axis=1))
+
+# Keras equivalents:
+# model.compile(loss='binary_crossentropy', ...)
+# model.compile(loss='categorical_crossentropy', ...)
+# model.compile(loss='sparse_categorical_crossentropy', ...)
+# model.compile(loss='mse', ...)
+
+12.6 Interview Questions — Day 12
+Q1: Why use cross-entropy instead of MSE for classification?
+
+Cross-entropy is derived from MLE and matches sigmoid/softmax distributions naturally. It penalizes confident wrong predictions heavily (logarithmically), providing stronger learning signals. MSE with sigmoid creates a flat gradient landscape, slowing training.
+
+Q2: What is the gradient of binary cross-entropy w.r.t. sigmoid output?
+
+∂L/∂z = ŷ - y. This beautiful simplification (from chain rule of cross-entropy + sigmoid) makes the gradient proportional to prediction error — a very clean and interpretable update.
+
+Q3: When would you use MAE instead of MSE?
+
+When the dataset has outliers and you don't want them to dominate training. MAE is more robust. However, MAE's non-differentiability at 0 can cause issues; Huber loss is often a better compromise.
+
+
+
+📅 DAY 13 — Backpropagation — Intuition
+13.1 What is Backpropagation?
+Backpropagation is the algorithm for computing gradients of the loss with respect to ALL parameters (weights and biases) in a neural network efficiently using the chain rule of calculus.
+Invented/Popularized by: Rumelhart, Hinton, Williams (1986)
+
+13.2 The Core Idea — Chain Rule
+If y = f(g(x)), then:
+dy/dx = df/dg * dg/dx
+
+Example:
+  Loss L = CrossEntropy(σ(z))
+  dL/dz = dL/dσ * dσ/dz   ← chain rule
+In a network: gradients flow backwards from the output to the input, multiplying local gradients at each step.
+
+13.3 Computation Graph Intuition
+Forward:   X → [W1, b1] → Z1 → A1 → [W2, b2] → Z2 → A2 → Loss
+                                                              ↓
+Backward:  dW1 ← dZ1 ← dA1 ← dZ2 ← dA2 ← dLoss
+           (Gradients flow backwards via chain rule)
+
+13.4 Local Gradients
+At each node in the computation graph, we compute:
+
+Local gradient: ∂(output)/∂(input) of that specific operation
+Upstream gradient: gradient arriving from the loss (output side)
+Final gradient: upstream × local (chain rule)
+
+For addition: ∂(a+b)/∂a = 1, ∂(a+b)/∂b = 1
+  → Gradient flows through unchanged (distributor)
+
+For multiplication: ∂(a*b)/∂a = b, ∂(a*b)/∂b = a
+  → Gradient is multiplied by the other operand
+
+For max(0, z) [ReLU]: 
+  → ∂/∂z = 1 if z > 0, else 0 (gate — blocks or passes)
+
+13.5 Backpropagation Step by Step (2-layer network)
+Network: X → Linear1 → ReLU → Linear2 → Sigmoid → Cross-entropy Loss
+
+Forward:
+  Z1 = W1·X + b1
+  A1 = ReLU(Z1)
+  Z2 = W2·A1 + b2
+  A2 = Sigmoid(Z2)  = ŷ
+  L  = CrossEntropy(y, ŷ)
+
+Backward (chain rule):
+  dL/dA2 = -(y/A2 - (1-y)/(1-A2))
+  dL/dZ2 = dL/dA2 * dA2/dZ2 = A2 - y   (simplified!)
+  dL/dW2 = dL/dZ2 · A1ᵀ
+  dL/db2 = sum(dL/dZ2)
+  
+  dL/dA1 = W2ᵀ · dL/dZ2
+  dL/dZ1 = dL/dA1 * (Z1 > 0)   [ReLU derivative]
+  dL/dW1 = dL/dZ1 · Xᵀ
+  dL/db1 = sum(dL/dZ1)
+
+13.6 Interview Questions — Day 13
+Q1: What is backpropagation?
+
+Backpropagation is an algorithm that computes gradients of the loss w.r.t. all network parameters using the chain rule of calculus. It passes the error signal backwards through the network, allowing gradient descent to update weights efficiently.
+
+Q2: What is the computational graph?
+
+A directed graph representing the computation of the forward pass. Each node is an operation, each edge is a variable. Backprop traverses this graph in reverse, computing gradients via chain rule.
+
+Q3: What is the difference between forward and backward pass?
+
+Forward pass: compute predictions from input (for inference). Backward pass: compute gradients from loss (for training). Forward pass is used at both training and inference; backward pass only during training.
+
+
+
+📅 DAY 14 — Backpropagation — Mathematics
+14.1 General Backprop Equations
+For layer l with weight W[l] and bias b[l]:
+Forward:
+  Z[l] = W[l] · A[l-1] + b[l]
+  A[l] = g[l](Z[l])
+
+Backward (given δ[l] = dL/dZ[l]):
+  δ[l]   = (W[l+1]ᵀ · δ[l+1]) ⊙ g'[l](Z[l])   [error signal]
+  dW[l]  = δ[l] · A[l-1]ᵀ / m
+  db[l]  = (1/m) * Σ δ[l]   [sum over batch]
+
+For output layer L:
+  δ[L] = dL/dA[L] ⊙ g'[L](Z[L])
+       = (ŷ - y)   for cross-entropy + sigmoid/softmax
+Where ⊙ = element-wise multiplication (Hadamard product)
+
+14.2 Backprop Code from Scratch
+pythonimport numpy as np
+
+def relu(Z):
+    return np.maximum(0, Z)
+
+def relu_backward(dA, Z):
+    dZ = dA.copy()
+    dZ[Z <= 0] = 0
+    return dZ
+
+def sigmoid(Z):
+    return 1 / (1 + np.exp(-np.clip(Z, -500, 500)))
+
+def compute_cost(AL, Y):
+    m = Y.shape[1]
+    AL = np.clip(AL, 1e-10, 1 - 1e-10)
+    return -(1/m) * np.sum(Y * np.log(AL) + (1-Y) * np.log(1-AL))
+
+def backward_propagation(AL, Y, caches):
+    """
+    Backward propagation for L-layer network.
+    caches: list of (A_prev, W, b, Z) tuples from forward prop
+    """
+    grads = {}
+    L = len(caches)
+    m = AL.shape[1]
+    
+    # Gradient of output layer (sigmoid + cross-entropy)
+    dAL = -(Y / np.clip(AL, 1e-10, None)) + (1 - Y) / np.clip(1 - AL, 1e-10, None)
+    
+    # Output layer backward (sigmoid activation)
+    A_prev, W, b, Z = caches[L - 1]
+    dZ = dAL * (AL * (1 - AL))  # sigmoid derivative
+    grads[f'dW{L}'] = np.dot(dZ, A_prev.T) / m
+    grads[f'db{L}'] = np.sum(dZ, axis=1, keepdims=True) / m
+    grads[f'dA{L-1}'] = np.dot(W.T, dZ)
+    
+    # Hidden layers backward (ReLU activation)
+    for l in reversed(range(L - 1)):
+        A_prev, W, b, Z = caches[l]
+        dZ = relu_backward(grads[f'dA{l+1}'], Z)
+        grads[f'dW{l+1}'] = np.dot(dZ, A_prev.T) / m
+        grads[f'db{l+1}'] = np.sum(dZ, axis=1, keepdims=True) / m
+        if l > 0:
+            grads[f'dA{l}'] = np.dot(W.T, dZ)
+    
+    return grads
+
+def update_parameters(parameters, grads, lr):
+    L = len(parameters) // 2
+    for l in range(1, L + 1):
+        parameters[f'W{l}'] -= lr * grads[f'dW{l}']
+        parameters[f'b{l}'] -= lr * grads[f'db{l}']
+    return parameters
+
+14.3 Interview Questions — Day 14
+Q1: Explain backpropagation mathematically.
+
+Backpropagation uses the chain rule to compute ∂L/∂W for every weight. Starting from output layer: δ[L] = (ŷ-y) (for cross-entropy + sigmoid). For each earlier layer: δ[l] = (W[l+1]ᵀ · δ[l+1]) ⊙ g'(Z[l]). Weight gradients: dW[l] = δ[l] · A[l-1]ᵀ / m.
+
+Q2: What does ⊙ (Hadamard product) mean in backprop?
+
+Element-wise multiplication. When computing δ[l], we multiply the upstream gradient (W[l+1]ᵀ · δ[l+1]) element-wise with the local gradient of the activation (g'(Z[l])). This implements the chain rule through the activation function.
+
+Q3: Why is backpropagation efficient?
+
+Because it reuses intermediate computations. Each gradient is computed exactly once by traversing the computation graph in reverse. Without this, computing ∂L/∂w for each weight independently would be O(P) times more expensive (P = number of parameters).
+
+
+
+📅 DAY 15 — Implementing ANN from Scratch
+15.1 Full Neural Network Implementation
+pythonimport numpy as np
+from sklearn.datasets import make_moons
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+class NeuralNetwork:
+    """
+    Fully connected neural network with arbitrary depth.
+    Hidden layers: ReLU activation
+    Output layer: Sigmoid (binary) or Softmax (multiclass)
+    Loss: Binary Cross-Entropy
+    Optimizer: Mini-batch Gradient Descent
+    """
+    
+    def __init__(self, layer_dims, learning_rate=0.01, 
+                 n_epochs=1000, batch_size=32, random_state=42):
+        np.random.seed(random_state)
+        self.layer_dims = layer_dims
+        self.lr = learning_rate
+        self.n_epochs = n_epochs
+        self.batch_size = batch_size
+        self.parameters = self._initialize_parameters()
+        self.costs = []
+    
+    def _initialize_parameters(self):
+        """He initialization for ReLU layers"""
+        params = {}
+        L = len(self.layer_dims) - 1
+        for l in range(1, L + 1):
+            # He: scale by sqrt(2/fan_in)
+            params[f'W{l}'] = (np.random.randn(self.layer_dims[l], self.layer_dims[l-1])
+                               * np.sqrt(2.0 / self.layer_dims[l-1]))
+            params[f'b{l}'] = np.zeros((self.layer_dims[l], 1))
+        return params
+    
+    def _relu(self, Z):
+        return np.maximum(0, Z)
+    
+    def _sigmoid(self, Z):
+        return 1 / (1 + np.exp(-np.clip(Z, -500, 500)))
+    
+    def _forward(self, X):
+        """Forward propagation. Returns output and all caches."""
+        caches = []
+        A = X.T  # Shape: (n_features, n_samples)
+        L = len(self.layer_dims) - 1
+        
+        for l in range(1, L):  # Hidden layers with ReLU
+            A_prev = A
+            W, b = self.parameters[f'W{l}'], self.parameters[f'b{l}']
+            Z = np.dot(W, A_prev) + b
+            A = self._relu(Z)
+            caches.append((A_prev, W, b, Z))
+        
+        # Output layer with Sigmoid
+        W, b = self.parameters[f'W{L}'], self.parameters[f'b{L}']
+        Z = np.dot(W, A) + b
+        AL = self._sigmoid(Z)
+        caches.append((A, W, b, Z))
+        
+        return AL, caches
+    
+    def _compute_cost(self, AL, Y):
+        m = Y.shape[0]
+        AL = np.clip(AL, 1e-10, 1 - 1e-10)
+        cost = -(1/m) * np.sum(Y * np.log(AL) + (1-Y) * np.log(1-AL))
+        return float(cost)
+    
+    def _backward(self, AL, Y, caches):
+        """Backward propagation. Returns all gradients."""
+        grads = {}
+        L = len(caches)
+        m = AL.shape[1]
+        Y = Y.reshape(1, -1)
+        
+        # Output layer gradient (sigmoid + cross-entropy → dZ = ŷ - y)
+        dZ = AL - Y
+        A_prev, W, b, Z = caches[L-1]
+        grads[f'dW{L}'] = np.dot(dZ, A_prev.T) / m
+        grads[f'db{L}'] = np.sum(dZ, axis=1, keepdims=True) / m
+        dA_prev = np.dot(W.T, dZ)
+        
+        # Hidden layers gradient (ReLU)
+        for l in reversed(range(L-1)):
+            A_prev, W, b, Z = caches[l]
+            dZ = dA_prev * (Z > 0).astype(float)  # ReLU derivative
+            grads[f'dW{l+1}'] = np.dot(dZ, A_prev.T) / m
+            grads[f'db{l+1}'] = np.sum(dZ, axis=1, keepdims=True) / m
+            dA_prev = np.dot(W.T, dZ)
+        
+        return grads
+    
+    def _update_parameters(self, grads):
+        L = len(self.layer_dims) - 1
+        for l in range(1, L + 1):
+            self.parameters[f'W{l}'] -= self.lr * grads[f'dW{l}']
+            self.parameters[f'b{l}'] -= self.lr * grads[f'db{l}']
+    
+    def fit(self, X, y):
+        m = X.shape[0]
+        
+        for epoch in range(self.n_epochs):
+            # Shuffle
+            idx = np.random.permutation(m)
+            X_s, y_s = X[idx], y[idx]
+            
+            epoch_cost = 0
+            for start in range(0, m, self.batch_size):
+                Xb = X_s[start:start+self.batch_size]
+                yb = y_s[start:start+self.batch_size]
+                
+                AL, caches = self._forward(Xb)
+                cost = self._compute_cost(AL, yb)
+                grads = self._backward(AL, yb, caches)
+                self._update_parameters(grads)
+                epoch_cost += cost
+            
+            if epoch % 100 == 0:
+                AL_full, _ = self._forward(X)
+                full_cost = self._compute_cost(AL_full, y)
+                self.costs.append(full_cost)
+                print(f"Epoch {epoch}: Cost = {full_cost:.4f}")
+    
+    def predict(self, X):
+        AL, _ = self._forward(X)
+        return (AL >= 0.5).astype(int).flatten()
+    
+    def score(self, X, y):
+        return np.mean(self.predict(X) == y)
+
+
+# Test on moons dataset (non-linearly separable)
+X, y = make_moons(n_samples=500, noise=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Architecture: 2 inputs → 10 → 5 → 1 output
+nn = NeuralNetwork(layer_dims=[2, 10, 5, 1], learning_rate=0.01, n_epochs=500)
+nn.fit(X_train, y_train)
+print(f"\nTest Accuracy: {nn.score(X_test, y_test):.4f}")
+
+15.2 Interview Questions — Day 15
+Q1: What's the advantage of implementing ANN from scratch vs using Keras?
+
+From scratch gives deep understanding of forward/backward pass, gradient flow, and numerical issues. Keras/TensorFlow is better for production. Both are useful — understanding scratch implementation makes debugging Keras models much easier.
+
+Q2: How do you detect if backpropagation is implemented correctly?
+
+Use gradient checking: compare analytical gradients (backprop) with numerical gradients (finite difference approximation: [L(θ+ε) - L(θ-ε)] / 2ε). If they're close (< 1e-5 relative error), backprop is correct.
+
+
+
+📅 DAY 16 — ANN with Keras — Binary Classification
+16.1 Keras Overview
+Keras is a high-level neural network API, integrated into TensorFlow 2.x as tf.keras. It provides:
+
+Simple, readable API for building models
+Multiple backends (TensorFlow, JAX)
+Automatic differentiation
+Built-in optimizers, losses, and metrics
+
+
+16.2 Keras Model Building Approaches
+python# Approach 1: Sequential API (simplest, for linear stacks)
+from tensorflow import keras
+
+model = keras.Sequential([
+    keras.layers.Dense(64, activation='relu', input_shape=(n_features,)),
+    keras.layers.Dense(32, activation='relu'),
+    keras.layers.Dense(1, activation='sigmoid')
+])
+
+# Approach 2: Functional API (flexible, for complex architectures)
+inputs = keras.Input(shape=(n_features,))
+x = keras.layers.Dense(64, activation='relu')(inputs)
+x = keras.layers.Dense(32, activation='relu')(x)
+outputs = keras.layers.Dense(1, activation='sigmoid')(x)
+model = keras.Model(inputs=inputs, outputs=outputs)
+
+16.3 Complete Binary Classification Example
+pythonimport tensorflow as tf
+from tensorflow import keras
+import numpy as np
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+
+# 1. Data Preparation
+data = load_breast_cancer()
+X, y = data.data, data.target
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# 2. Model Definition
+model = keras.Sequential([
+    keras.layers.Dense(64, activation='relu', 
+                       input_shape=(X_train.shape[1],),
+                       name='hidden_1'),
+    keras.layers.Dense(32, activation='relu', 
+                       name='hidden_2'),
+    keras.layers.Dense(16, activation='relu',
+                       name='hidden_3'),
+    keras.layers.Dense(1, activation='sigmoid',
+                       name='output')
+])
+
+# 3. Model Summary
+model.summary()
+# Prints layers, output shapes, and parameter counts
+
+# 4. Compile — Define optimizer, loss, metrics
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    loss='binary_crossentropy',
+    metrics=['accuracy', 
+             keras.metrics.AUC(name='auc'),
+             keras.metrics.Precision(name='precision'),
+             keras.metrics.Recall(name='recall')]
+)
+
+# 5. Callbacks — Early stopping, model checkpoint
+callbacks = [
+    keras.callbacks.EarlyStopping(
+        monitor='val_loss',
+        patience=20,          # stop if no improvement for 20 epochs
+        restore_best_weights=True,
+        verbose=1
+    ),
+    keras.callbacks.ModelCheckpoint(
+        'best_model.keras',
+        monitor='val_loss',
+        save_best_only=True,
+        verbose=1
+    ),
+    keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss',
+        factor=0.5,           # halve learning rate
+        patience=10,
+        min_lr=1e-7,
+        verbose=1
+    )
+]
+
+# 6. Train
+history = model.fit(
+    X_train, y_train,
+    validation_split=0.2,   # 20% of training data for validation
+    epochs=200,
+    batch_size=32,
+    callbacks=callbacks,
+    verbose=1
+)
+
+# 7. Evaluate
+test_loss, test_acc, test_auc, test_prec, test_rec = model.evaluate(X_test, y_test)
+print(f"\nTest Accuracy: {test_acc:.4f}")
+print(f"Test AUC: {test_auc:.4f}")
+
+# 8. Predict
+y_pred_prob = model.predict(X_test)         # probabilities
+y_pred = (y_pred_prob >= 0.5).astype(int)  # binary predictions
+
+# 9. Plot Training History
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+axes[0].plot(history.history['loss'], label='Train Loss')
+axes[0].plot(history.history['val_loss'], label='Val Loss')
+axes[0].set_title('Loss Curve')
+axes[0].legend()
+
+axes[1].plot(history.history['accuracy'], label='Train Acc')
+axes[1].plot(history.history['val_accuracy'], label='Val Acc')
+axes[1].set_title('Accuracy Curve')
+axes[1].legend()
+
+plt.tight_layout()
+plt.show()
+
+16.4 Interview Questions — Day 16
+Q1: What does model.compile() do?
+
+It configures the training process by specifying: (1) optimizer — algorithm for updating weights, (2) loss — objective to minimize, (3) metrics — quantities to monitor (not optimized). These must be specified before calling model.fit().
+
+Q2: What is EarlyStopping and why use it?
+
+EarlyStopping monitors a validation metric and stops training when it hasn't improved for patience epochs. It prevents overfitting (training longer would reduce training loss but increase validation loss), and saves compute time.
+
+Q3: What is restore_best_weights=True in EarlyStopping?
+
+When set to True, after stopping, the model weights are restored to the epoch with the best validation performance (not the last epoch, which might be overfitted). Always use this option.
+
+Q4: What is validation_split vs validation_data?
+
+validation_split=0.2 uses the last 20% of training data for validation. validation_data=(X_val, y_val) uses a separate provided dataset. Always prefer providing a separate validation set to ensure the split is stratified and reproducible.
+
+
+
+📅 DAY 17 — ANN with Keras — Multiclass Classification
+17.1 Changes for Multiclass
+AspectBinaryMulticlassOutput neurons1K (number of classes)Output activationSigmoidSoftmaxLoss functionbinary_crossentropycategorical_crossentropy OR sparse_categorical_crossentropyLabel format0/1 arrayOne-hot (categorical_ce) or integer (sparse_categorical_ce)
+
+17.2 Complete Multiclass Example
+pythonimport tensorflow as tf
+from tensorflow import keras
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+import numpy as np
+
+# 1. Data
+from sklearn.datasets import load_digits
+digits = load_digits()  # 8x8 images, 10 classes
+X = digits.data         # (1797, 64)
+y = digits.target       # (1797,) — integer labels
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+n_classes = 10
+
+# 2. Model — Use softmax output, K output neurons
+model = keras.Sequential([
+    keras.layers.Dense(128, activation='relu', input_shape=(64,)),
+    keras.layers.Dense(64, activation='relu'),
+    keras.layers.Dense(n_classes, activation='softmax')  # 10 neurons, softmax
+])
+
+# 3. Compile — sparse_categorical_crossentropy (integer labels)
+model.compile(
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',  # y_train is integers, not one-hot
+    metrics=['accuracy']
+)
+
+# 3b. If using one-hot labels:
+# y_train_onehot = keras.utils.to_categorical(y_train, n_classes)
+# loss='categorical_crossentropy'
+
+# 4. Train
+history = model.fit(
+    X_train, y_train,
+    validation_split=0.2,
+    epochs=100,
+    batch_size=32,
+    callbacks=[keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True)]
+)
+
+# 5. Evaluate
+print(f"Test Accuracy: {model.evaluate(X_test, y_test)[1]:.4f}")
+
+# 6. Predict
+y_pred_probs = model.predict(X_test)    # (n_test, 10) — softmax probabilities
+y_pred = np.argmax(y_pred_probs, axis=1)  # Take class with highest probability
+
+# Confusion Matrix
+from sklearn.metrics import confusion_matrix, classification_report
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+cm = confusion_matrix(y_test, y_pred)
+plt.figure(figsize=(10, 8))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.title('Confusion Matrix')
+plt.ylabel('True Label')
+plt.xlabel('Predicted Label')
+plt.show()
+
+print(classification_report(y_test, y_pred))
+
+17.3 Interview Questions — Day 17
+Q1: Categorical vs Sparse Categorical Cross-Entropy?
+
+Same mathematical formula. categorical_crossentropy expects one-hot encoded labels (e.g., [0,0,1,0]). sparse_categorical_crossentropy expects integer class labels (e.g., 2). Use sparse when you have many classes — one-hot encoding would be memory-intensive.
+
+Q2: Why argmax for multiclass prediction?
+
+Softmax outputs K probabilities summing to 1. The predicted class is the one with the highest probability, obtained via np.argmax. This is the most likely class according to the model.
+
+
+
+📅 DAY 18 — ANN with Keras — Regression
+18.1 Changes for Regression
+AspectClassificationRegressionOutput neurons1 (binary) or K (multi)1 (usually)Output activationSigmoid/SoftmaxNone (linear)Loss functioncross-entropyMSE or MAEOutput range[0,1] or probabilityAny real valueEvaluation metricAccuracy, AUCMSE, RMSE, MAE, R²
+
+18.2 Complete Regression Example
+pythonimport tensorflow as tf
+from tensorflow import keras
+from sklearn.datasets import fetch_california_housing
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 1. Data
+housing = fetch_california_housing()
+X, y = housing.data, housing.target  # y = median house value in $100Ks
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Note: Do NOT scale y for regression unless values are very extreme
+
+# 2. Model — Linear output, no activation on output layer
+model = keras.Sequential([
+    keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
+    keras.layers.Dense(64, activation='relu'),
+    keras.layers.Dense(32, activation='relu'),
+    keras.layers.Dense(1)  # ← No activation for regression!
+])
+
+# 3. Compile
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    loss='mse',              # Mean Squared Error
+    metrics=['mae']          # Mean Absolute Error to monitor
+)
+
+# 4. Train
+history = model.fit(
+    X_train, y_train,
+    validation_split=0.2,
+    epochs=200,
+    batch_size=64,
+    callbacks=[
+        keras.callbacks.EarlyStopping(monitor='val_loss', patience=20, 
+                                      restore_best_weights=True)
+    ],
+    verbose=0
+)
+
+# 5. Evaluate
+test_mse, test_mae = model.evaluate(X_test, y_test, verbose=0)
+test_rmse = np.sqrt(test_mse)
+print(f"Test RMSE: {test_rmse:.4f} (in $100K)")
+print(f"Test MAE:  {test_mae:.4f} (in $100K)")
+
+# R² Score
+y_pred = model.predict(X_test).flatten()
+from sklearn.metrics import r2_score
+print(f"R² Score:  {r2_score(y_test, y_pred):.4f}")
+
+# Prediction vs Actual plot
+plt.figure(figsize=(8, 6))
+plt.scatter(y_test, y_pred, alpha=0.3)
+plt.plot([y_test.min(), y_test.max()], 
+         [y_test.min(), y_test.max()], 'r--', label='Perfect prediction')
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Regression: Predicted vs Actual')
+plt.legend()
+plt.show()
+
+18.3 Interview Questions — Day 18
+Q1: Why no activation in the output layer for regression?
+
+Regression predicts continuous values that can be any real number. Sigmoid limits output to (0,1) and softmax to probabilities. For regression, we want the raw linear combination to be the output — no constraint on its range.
+
+Q2: Should you normalize the target variable y in regression?
+
+It depends. If y has extreme values or very large scale (e.g., millions), normalizing y can help training stability. If y is already on a reasonable scale ($100K for housing), it's optional. Always normalize input features X.
+
+Q3: What metrics are used for regression?
+
+MSE (sensitive to outliers, differentiable), RMSE (same units as target, interpretable), MAE (robust to outliers), R² (proportion of variance explained, 1 = perfect, 0 = baseline mean model, negative = worse than baseline).
+
+
+
+📅 DAY 19 — Vanishing & Exploding Gradient Problem
+19.1 The Vanishing Gradient Problem
+Definition: Gradients become exponentially small as they propagate backwards through many layers, causing early layers to learn very slowly or not at all.
+Root Cause — Sigmoid Activation
+σ'(z) = σ(z)(1-σ(z))  ← max value = 0.25 at z=0
+
+In backprop:
+dL/dW1 = δ4 * W4 * g'(Z3) * W3 * g'(Z2) * W2 * g'(Z1) * X
+
+With sigmoid: each g'(Z) ≤ 0.25
+For 10 layers: (0.25)^10 ≈ 0.0000001
+
+→ Gradient for W1 is ~10 million times smaller than gradient for W10!
+→ Early layers barely update.
+Consequences
+
+Deep networks with sigmoid fail to train
+Early layers remain near initialization
+Network effectively behaves as a shallow network
+
+
+19.2 The Exploding Gradient Problem
+Definition: Gradients become exponentially large, causing weight updates to be enormous — destabilizing training.
+If weights W >> 1 and many layers:
+Gradient ∝ W^L → explodes as L (depth) grows
+
+Symptoms:
+  - Loss becomes NaN
+  - Weights become NaN or Inf
+  - Very unstable training loss
+
+19.3 Solutions Overview
+ProblemSolutionVanishingReLU activation, proper initialization, Batch Normalization, skip connections (ResNet)ExplodingGradient clipping, proper initialization, Batch Normalization
+
+19.4 Gradient Clipping
+python# Clip by value
+optimizer = keras.optimizers.Adam(learning_rate=0.001, clipvalue=1.0)
+# Gradients are clipped to [-1.0, 1.0]
+
+# Clip by norm (preferred)
+optimizer = keras.optimizers.Adam(learning_rate=0.001, clipnorm=1.0)
+# If gradient norm > 1.0, scale down proportionally
+
+19.5 ReLU Solves Vanishing Gradient (for positive activations)
+ReLU'(z) = { 1  if z > 0
+           { 0  if z ≤ 0
+
+For z > 0: gradient = 1, NOT attenuated through layer!
+Product of gradients: 1 × 1 × 1 × ... = 1 (no vanishing)
+
+BUT: Dying ReLU (gradient = 0 for z ≤ 0) is a problem
+Solution: Leaky ReLU, ELU, or careful initialization
+
+19.6 Interview Questions — Day 19
+Q1: What is the vanishing gradient problem and what causes it?
+
+As gradients propagate backwards through many layers (via chain rule), they get multiplied by small values (like sigmoid derivatives ≤ 0.25). After many layers, the product approaches zero, making early layer gradients negligibly small. These layers essentially stop learning.
+
+Q2: How does ReLU solve the vanishing gradient problem?
+
+ReLU's derivative is 1 for positive inputs. When backpropagating through ReLU (for active neurons), gradients are passed unchanged (not attenuated). This prevents the exponential decay seen with sigmoid. However, dead neurons (ReLU = 0) still have zero gradient.
+
+Q3: What is gradient clipping?
+
+Gradient clipping caps gradient values during backprop to prevent explosions. "Clip by value" limits each gradient element. "Clip by norm" scales the entire gradient vector if its norm exceeds a threshold (preferred, as it preserves direction).
+
+Q4: What are skip connections and how do they help?
+
+Skip connections (ResNets) directly connect earlier layers to later ones, bypassing some layers. This creates direct gradient paths that don't suffer from vanishing: ∂L/∂W = ... + 1 (from skip). Enabled training of networks 100+ layers deep.
+
+
+
+📅 DAY 20 — Improved Weight Initialization
+20.1 Why Initialization Matters
+Poor initialization → poor training:
+
+All zeros: all neurons learn the same thing (symmetry breaking failure)
+Too large: exploding gradients, saturating activations
+Too small: vanishing gradients
+
+
+20.2 Zero Initialization — NEVER DO THIS
+python# Wrong!
+W = np.zeros((n_out, n_in))
+
+# All neurons in a layer compute identical gradients → identical updates
+# Network never learns different features
+# Called the "Symmetry Problem"
+
+20.3 Random Initialization
+python# Small random values
+W = np.random.randn(n_out, n_in) * 0.01
+
+# Issue: For deep networks, activations still shrink/explode
+# Too small → vanishing, too large → exploding
+
+20.4 Xavier/Glorot Initialization (for tanh/sigmoid)
+Proposed by Glorot & Bengio (2010)
+
+W ~ Uniform[-√(6/(n_in + n_out)), +√(6/(n_in + n_out))]
+OR
+W ~ Normal(0, √(2/(n_in + n_out)))
+
+Goal: Keep variance of activations constant across layers
+Derivation: Variance(W) = 2/(n_in + n_out)
+python# In Keras
+keras.layers.Dense(64, activation='tanh', 
+                   kernel_initializer='glorot_uniform')  # default for tanh/sigmoid
+
+20.5 He/Kaiming Initialization (for ReLU) ⭐ Recommended
+Proposed by He et al. (2015)
+
+W ~ Normal(0, √(2/n_in))
+
+The factor 2 accounts for ReLU zeroing out half the neurons
+Goal: Preserve variance through ReLU layers
+
+Variance(W) = 2/n_in
+python# In Keras
+keras.layers.Dense(64, activation='relu',
+                   kernel_initializer='he_normal')  # best for ReLU
+# OR
+keras.layers.Dense(64, activation='relu',
+                   kernel_initializer='he_uniform')
+
+20.6 Initialization Comparison
+pythonimport numpy as np
+
+def init_comparison(n_in=256, n_layers=10):
+    """Show how activations behave with different initializations"""
+    
+    for init_name, scale in [("Zeros", 0), ("Small Random", 0.01), 
+                               ("Xavier", np.sqrt(2/(n_in*2))), 
+                               ("He", np.sqrt(2/n_in))]:
+        A = np.random.randn(1000, n_in)  # input
+        
+        for _ in range(n_layers):
+            W = np.random.randn(n_in, n_in) * scale if scale > 0 else np.zeros((n_in, n_in))
+            Z = np.dot(A, W)
+            A = np.maximum(0, Z)  # ReLU
+        
+        print(f"{init_name:15s}: mean={A.mean():.4f}, std={A.std():.4f}, "
+              f"zeros={np.mean(A==0)*100:.1f}%")
+
+20.7 Interview Questions — Day 20
+Q1: Why can't you initialize all weights to zero?
+
+Symmetry problem. All neurons in a layer compute the same output and receive identical gradients, updating identically. The network effectively has only one neuron per layer. Random initialization breaks this symmetry.
+
+Q2: What is He initialization and when do you use it?
+
+He initialization sets W ~ N(0, √(2/n_in)). Used with ReLU activation. The factor 2 compensates for ReLU zeroing out ~half the activations. This keeps gradient variance stable across deep networks. Use Glorot (Xavier) for sigmoid/tanh instead.
+
+Q3: What happens if weights are initialized too large?
+
+Sigmoid/tanh activations saturate at extremes → near-zero gradients. ReLU activations explode. Gradients become very large, causing unstable training (loss oscillates or becomes NaN).
+
+
+
+📅 DAY 21 — Batch Normalization
+21.1 What is Batch Normalization?
+Proposed by Ioffe & Szegedy (2015). One of the most important innovations in deep learning.
+Problem: As training progresses, the distribution of inputs to each layer keeps changing as parameters of previous layers change. This is called Internal Covariate Shift — makes training slow and requires careful initialization.
+Solution: Normalize the inputs to each layer to have zero mean and unit variance, then apply learnable scale (γ) and shift (β).
+
+21.2 Batch Normalization Math
+For a mini-batch B = {x1, x2, ..., xm}:
+Step 1: Compute batch mean
+  μB = (1/m) * Σ xi
+
+Step 2: Compute batch variance
+  σ²B = (1/m) * Σ (xi - μB)²
+
+Step 3: Normalize
+  x̂i = (xi - μB) / √(σ²B + ε)   [ε ≈ 1e-5 for numerical stability]
+
+Step 4: Scale and shift (learnable)
+  yi = γ * x̂i + β
+
+Parameters:
+  γ (gamma): learnable scale — allows the layer to undo normalization if useful
+  β (beta):  learnable shift
+  ε: small constant to avoid division by zero
+
+21.3 Benefits of Batch Normalization
+
+Faster training — allows higher learning rates, faster convergence
+Reduces sensitivity to initialization — more robust to weight initialization
+Acts as regularization — reduces need for dropout (batch statistics add noise)
+Mitigates vanishing/exploding gradients — normalizes activations
+Enables training very deep networks (100+ layers)
+
+
+21.4 Training vs Inference
+TrainingInferenceMeanBatch mean μBRunning mean (exponential moving average)VarianceBatch variance σ²BRunning variance (EMA)Batch size neededYesNo (uses stored statistics)
+During inference, BatchNorm uses accumulated running statistics:
+python# Keras handles this automatically with model.predict() vs model.fit()
+
+21.5 Where to Place Batch Normalization?
+Approach 1 (Original paper): After linear, before activation
+  Dense → BatchNorm → ReLU
+
+Approach 2 (More common in practice): After activation
+  Dense → ReLU → BatchNorm
+
+Both work; original paper suggests before activation.
+
+21.6 Code — Batch Normalization in Keras
+pythonimport tensorflow as tf
+from tensorflow import keras
+
+# Model WITH Batch Normalization
+model = keras.Sequential([
+    keras.layers.Dense(256, input_shape=(64,)),
+    keras.layers.BatchNormalization(),           # Normalize, then activate
+    keras.layers.Activation('relu'),
+    
+    keras.layers.Dense(128),
+    keras.layers.BatchNormalization(),
+    keras.layers.Activation('relu'),
+    
+    keras.layers.Dense(64),
+    keras.layers.BatchNormalization(),
+    keras.layers.Activation('relu'),
+    
+    keras.layers.Dense(10, activation='softmax')
+])
+
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=0.01),  # Can use higher LR with BN!
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+# Batch Normalization parameters
+bn_layer = model.layers[1]
+print(f"Trainable: γ={bn_layer.gamma.shape}, β={bn_layer.beta.shape}")
+print(f"Non-trainable: μ={bn_layer.moving_mean.shape}, σ²={bn_layer.moving_variance.shape}")
+
+21.7 Interview Questions — Day 21
+Q1: What is Internal Covariate Shift?
+
+The change in distribution of network layer inputs during training as parameters of previous layers change. This forces each layer to continuously adapt to new distributions, slowing training. Batch Normalization fixes this by normalizing inputs at each layer.
+
+Q2: What are the learnable parameters in Batch Normalization?
+
+Two per feature: γ (scale) and β (shift). Total parameters = 2 × n_features per BN layer. They allow the network to "undo" normalization if it helps, giving full expressiveness. Additionally, running mean and variance are tracked (non-learnable, used at inference).
+
+Q3: Why can't you use Batch Normalization with batch_size=1?
+
+With one sample, batch mean = the sample itself, and batch variance = 0. After normalization, all values become 0 (or NaN). BN requires at least a few samples to compute meaningful statistics. For small batch sizes, use Layer Normalization instead.
+
+Q4: What's the difference between Batch Normalization and Layer Normalization?
+
+BatchNorm normalizes across the batch dimension (per feature). LayerNorm normalizes across the feature dimension (per sample). LayerNorm works with any batch size and is used in Transformers/RNNs. BatchNorm is preferred for CNNs.
+
+
+
+📅 DAY 22 — Advanced Optimizers
+22.1 Problems with Basic SGD
+
+Fixed learning rate for all parameters
+Sensitive to learning rate choice
+Slow convergence in ravines (elongated loss surfaces)
+Easily gets stuck at saddle points
+
+
+22.2 Momentum
+Adds "velocity" to gradient descent — accelerates in consistent gradient directions, dampens oscillations.
+v = β * v_prev + η * ∇L
+θ = θ - v
+
+β (momentum) ≈ 0.9 (typical)
+Physical analogy: Ball rolling down hill gains momentum
+
+22.3 AdaGrad
+Adapts learning rate per parameter based on historical gradient magnitude.
+G += (∇L)²     [accumulate squared gradients]
+θ  -= η / (√G + ε) * ∇L
+
+Pros: High LR for sparse features, low LR for frequent features
+Cons: Accumulated G keeps growing → LR → 0 (learning stops)
+
+22.4 RMSProp
+Fixes AdaGrad's diminishing LR using exponential moving average:
+E[g²] = ρ * E[g²]_prev + (1-ρ) * (∇L)²   [EMA of squared gradients]
+θ     -= η / √(E[g²] + ε) * ∇L
+
+ρ ≈ 0.9 (decay rate)
+Preferred for RNNs
+
+22.5 Adam (Adaptive Moment Estimation) ⭐ Default Choice
+Combines Momentum + RMSProp. Most widely used optimizer.
+m = β1 * m_prev + (1-β1) * ∇L           [1st moment: mean of gradients]
+v = β2 * v_prev + (1-β2) * (∇L)²        [2nd moment: uncentered variance]
+
+Bias correction (important for early steps):
+m̂ = m / (1 - β1^t)
+v̂ = v / (1 - β2^t)
+
+Update:
+θ -= η * m̂ / (√v̂ + ε)
+
+Default hyperparameters (from paper):
+  β1 = 0.9    (momentum decay)
+  β2 = 0.999  (RMS decay)
+  ε  = 1e-7
+  η  = 0.001
+
+22.6 Optimizer Comparison
+Optimizer     | Adaptive LR | Momentum | Memory  | Default LR | Best For
+--------------|-------------|----------|---------|------------|----------
+SGD           | No          | No       | Low     | 0.01       | Simple problems
+SGD+Momentum  | No          | Yes      | Low     | 0.01       | CV with tuning
+AdaGrad       | Yes         | No       | Medium  | 0.01       | Sparse data
+RMSProp       | Yes         | Partial  | Medium  | 0.001      | RNNs
+Adam          | Yes         | Yes      | Medium  | 0.001      | Default choice
+AdamW         | Yes         | Yes      | Medium  | 0.001      | Transformers
+
+22.7 Code — All Optimizers in Keras
+pythonfrom tensorflow import keras
+
+# SGD with momentum
+opt_sgd = keras.optimizers.SGD(learning_rate=0.01, momentum=0.9, nesterov=True)
+
+# Adam (default — usually best starting point)
+opt_adam = keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, 
+                                  beta_2=0.999, epsilon=1e-7)
+
+# RMSProp
+opt_rms = keras.optimizers.RMSprop(learning_rate=0.001, rho=0.9)
+
+# AdaGrad
+opt_ada = keras.optimizers.Adagrad(learning_rate=0.01)
+
+# Learning Rate Scheduling
+lr_schedule = keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=0.01,
+    decay_steps=1000,
+    decay_rate=0.96
+)
+opt_with_schedule = keras.optimizers.Adam(learning_rate=lr_schedule)
+
+22.8 Interview Questions — Day 22
+Q1: Why is Adam the most popular optimizer?
+
+Adam combines the benefits of Momentum (fast convergence along consistent directions) and RMSProp (adaptive learning rate per parameter). It's robust to hyperparameter choices, requires minimal tuning, and works well on a wide variety of problems.
+
+Q2: What is the bias correction in Adam?
+
+At early steps, m and v are initialized at 0 and thus biased toward 0. Bias correction (dividing by 1-β^t) adjusts for this initialization, making the estimates accurate especially in the first few iterations.
+
+Q3: When would you use SGD over Adam?
+
+For computer vision, fine-tuned SGD with momentum can generalize better than Adam (Adam can overfit). Research papers show SGD sometimes finds "flatter" minima that generalize better. Adam converges faster but sometimes to sharper minima. In practice, Adam is the default starting point.
+
+
+
+📅 DAY 23 — Regularization in Neural Networks
+23.1 Overfitting in Neural Networks
+Neural networks are highly expressive → prone to overfitting (memorizing training data, poor generalization).
+Signs of Overfitting:
+  - Training loss much lower than validation loss
+  - Training accuracy much higher than validation accuracy
+  - Val loss increases while train loss decreases
+
+23.2 L1 Regularization (Lasso)
+L_total = L_original + λ * Σ|wi|
+
+Effect: Pushes weights to exactly zero → sparse weights
+Gradient: sign(w) — constant magnitude regardless of |w|
+Use: Feature selection in neural networks (less common)
+
+23.3 L2 Regularization (Ridge / Weight Decay)
+L_total = L_original + λ * Σwi²
+
+Effect: Pushes weights toward zero (but not exactly zero) → small weights
+Gradient: 2λw — proportional to weight magnitude
+Use: Standard regularization for neural networks
+
+In Keras:
+  keras.regularizers.l2(l2=0.01)
+  Equivalent to "weight decay" in Adam (AdamW)
+
+23.4 Dropout ⭐ Most Used in Deep Learning
+Proposed by Srivastava et al. (2014).
+Mechanism: During each training step, randomly "drop" (set to 0) neurons with probability p. This prevents neurons from co-adapting.
+Training:   Randomly set fraction p of activations to 0
+Inference:  Use ALL neurons, scale activations by (1-p)
+
+(Inverted dropout: scale by 1/(1-p) during training, no scaling at inference)
+python# In Keras (uses inverted dropout automatically)
+keras.layers.Dropout(rate=0.3)   # 30% of neurons dropped each step
+
+# Applied AFTER activation:
+keras.layers.Dense(256, activation='relu'),
+keras.layers.Dropout(0.3),
+keras.layers.Dense(128, activation='relu'),
+keras.layers.Dropout(0.3),
+Dropout rates:
+
+0.2–0.5 for hidden layers
+Lower rate for input layer (0.1–0.2)
+Never on output layer
+
+Why it works:
+
+Prevents co-adaptation (neurons can't rely on specific other neurons)
+Ensemble effect: trains ~2^n different sub-networks
+Acts as noise injection
+
+
+23.5 Early Stopping
+Stop training when validation loss stops improving:
+pythonkeras.callbacks.EarlyStopping(
+    monitor='val_loss',
+    patience=20,
+    restore_best_weights=True
+)
+
+23.6 Complete Regularized Network
+pythonimport tensorflow as tf
+from tensorflow import keras
+
+def build_regularized_model(input_dim, dropout_rate=0.3, l2_reg=0.001):
+    """Model with multiple regularization techniques"""
+    model = keras.Sequential([
+        # Input + L2
+        keras.layers.Dense(256, input_shape=(input_dim,),
+                          kernel_regularizer=keras.regularizers.l2(l2_reg)),
+        keras.layers.BatchNormalization(),
+        keras.layers.Activation('relu'),
+        keras.layers.Dropout(dropout_rate),
+        
+        # Hidden 2
+        keras.layers.Dense(128,
+                          kernel_regularizer=keras.regularizers.l2(l2_reg)),
+        keras.layers.BatchNormalization(),
+        keras.layers.Activation('relu'),
+        keras.layers.Dropout(dropout_rate),
+        
+        # Hidden 3
+        keras.layers.Dense(64,
+                          kernel_regularizer=keras.regularizers.l2(l2_reg)),
+        keras.layers.BatchNormalization(),
+        keras.layers.Activation('relu'),
+        keras.layers.Dropout(dropout_rate * 0.5),  # Less dropout in deeper layers
+        
+        keras.layers.Dense(1, activation='sigmoid')
+    ])
+    return model
+
+23.7 Interview Questions — Day 23
+Q1: How does Dropout prevent overfitting?
+
+Dropout randomly deactivates neurons during training, preventing co-adaptation (neurons relying on each other). Each training step trains a slightly different architecture. At test time, using all neurons approximates averaging predictions from this ensemble of sub-networks.
+
+Q2: Should you apply Dropout before or after activation?
+
+After activation. Applying before activation would zero out pre-activation values and the activation function wouldn't matter for dropped neurons. Post-activation dropout more accurately simulates removing a neuron's contribution.
+
+Q3: What's the difference between L1 and L2 regularization?
+
+L1 penalty is |w| → gradient is constant (sign of w) → drives weights to exactly 0 → sparse solution, useful for feature selection. L2 penalty is w² → gradient is proportional to w → drives weights near 0 but not exactly → more weight diffusion.
+
+Q4: How is Dropout different during training vs inference?
+
+Training: neurons dropped with probability p (random). Inference: all neurons active, outputs scaled by (1-p) to match expected training output. Keras uses inverted dropout — scales by 1/(1-p) during training so no scaling needed at inference.
+
+
+
+📅 DAY 24 — Hyperparameter Tuning
+24.1 Key Hyperparameters
+HyperparameterTypical RangeNotesLearning rate1e-5 to 0.1Most important; use log scaleBatch size16, 32, 64, 128, 256Larger = stabler, but may generalize worseEpochs50–1000Use early stopping instead of fixedN hidden layers1–10Deeper for complex problemsNeurons per layer32–1024Powers of 2 for GPU efficiencyDropout rate0.1–0.5Higher = more regularizationL2 lambda1e-5 to 1e-2Start at 0.001OptimizerAdamDefault; SGD for CV research
+
+24.2 Hyperparameter Search Strategies
+Grid Search
+
+Exhaustive search over all combinations
+Expensive for many hyperparameters
+
+Random Search
+
+Sample random combinations
+Surprisingly effective (Bergstra & Bengio, 2012)
+Better than grid search with equal budget
+
+Bayesian Optimization
+
+Model the hyperparameter-performance relationship
+Suggest next configuration based on past results
+Most efficient (Optuna, Hyperopt)
+
+
+24.3 Keras Tuner
+pythonimport keras_tuner as kt
+
+def build_model(hp):
+    model = keras.Sequential()
+    
+    # Tune number of layers
+    for i in range(hp.Int('n_layers', 1, 4)):
+        # Tune units per layer
+        model.add(keras.layers.Dense(
+            units=hp.Choice(f'units_{i}', [32, 64, 128, 256]),
+            activation='relu'
+        ))
+        # Tune dropout
+        model.add(keras.layers.Dropout(
+            rate=hp.Float(f'dropout_{i}', 0.0, 0.5, step=0.1)
+        ))
+    
+    model.add(keras.layers.Dense(1, activation='sigmoid'))
+    
+    # Tune learning rate
+    model.compile(
+        optimizer=keras.optimizers.Adam(
+            hp.Float('lr', 1e-4, 1e-2, sampling='log')
+        ),
+        loss='binary_crossentropy',
+        metrics=['accuracy']
+    )
+    return model
+
+# Run random search
+tuner = kt.RandomSearch(
+    build_model,
+    objective='val_accuracy',
+    max_trials=50,
+    executions_per_trial=2,
+    directory='my_dir'
+)
+
+tuner.search(X_train, y_train, 
+             validation_split=0.2, 
+             epochs=50,
+             callbacks=[keras.callbacks.EarlyStopping(patience=5)])
+
+best_hps = tuner.get_best_hyperparameters()[0]
+best_model = tuner.get_best_models()[0]
+
+24.4 Learning Rate Finder
+python# Find optimal learning rate using learning rate range test
+import numpy as np
+
+def lr_finder(model, X_train, y_train, 
+              min_lr=1e-7, max_lr=1.0, steps=200):
+    """
+    Gradually increases LR from min to max over training steps.
+    Plot loss vs LR to find optimal range.
+    """
+    lrs = np.logspace(np.log10(min_lr), np.log10(max_lr), steps)
+    losses = []
+    
+    for lr in lrs:
+        # Set new learning rate
+        model.optimizer.lr = lr
+        
+        # Train one mini-batch
+        idx = np.random.choice(len(X_train), 32)
+        loss = model.train_on_batch(X_train[idx], y_train[idx])
+        losses.append(loss[0] if isinstance(loss, list) else loss)
+        
+        if loss > 10 * losses[0]:  # Diverging — stop
+            break
+    
+    # Plot: Choose LR slightly before minimum
+    import matplotlib.pyplot as plt
+    plt.plot(lrs[:len(losses)], losses)
+    plt.xscale('log')
+    plt.xlabel('Learning Rate')
+    plt.ylabel('Loss')
+    plt.title('LR Finder — Choose LR at steepest descent')
+    plt.show()
+    
+    return lrs, losses
+
+24.5 Interview Questions — Day 24
+Q1: What is the most important hyperparameter to tune?
+
+Learning rate is most critical. Too high → diverges. Too low → too slow. A learning rate finder or log-scale search can identify a good range. After learning rate, batch size and network architecture are next most important.
+
+Q2: Why use random search over grid search?
+
+With n hyperparameters, grid search has O(kⁿ) combinations. Random search can find good configurations with fewer trials because not all hyperparameters are equally important — random sampling allocates more trials to important ones (demonstrated by Bergstra & Bengio 2012).
+
+Q3: What is the learning rate warm-up strategy?
+
+Start with a very small learning rate, gradually increase it over the first few epochs/steps, then decay it. Prevents unstable updates at the start when weights are random. Used in Transformers and large-batch training. Can be combined with cosine annealing.
+
+
+
+📅 DAY 25 — Convolutional Neural Networks (CNN) — Intuition
+25.1 Why CNN? Problem with Dense Networks for Images
+For a 224×224×3 (RGB) image → 150,528 input features.
+A single dense layer with 1000 neurons: 150,528 × 1000 = 150 million parameters!
+Problems:
+
+Too many parameters → overfitting
+Too slow
+Doesn't exploit spatial structure of images
+Not translation invariant
+
+
+25.2 Biological Inspiration
+Hubel & Wiesel (1959) discovered that neurons in the visual cortex have local receptive fields — each neuron only responds to a small region of the visual field. CNN mimics this.
+
+25.3 Three Key Ideas of CNN
+
+Local Connectivity — Each neuron connects to only a small region (e.g., 3×3 patch) of the input, not all neurons.
+Parameter Sharing (Weight Sharing) — The same filter (set of weights) is applied across the entire input. All positions share the same weights → massive parameter reduction.
+Translation Invariance — Same filter detects features anywhere in the image (cat in top-left is the same cat as in bottom-right).
+
+
+25.4 CNN Architecture Overview
+Input Image → [Conv → ReLU]* → Pool → [Conv → ReLU]* → Pool → 
+→ Flatten → Dense → Dense → Output
+
+Components:
+  Convolutional Layer: Feature extraction
+  Pooling Layer:       Downsampling, translation invariance
+  Fully Connected:     Classification/regression
+
+25.5 Feature Hierarchy in CNNs
+Layer 1:  Detects edges, lines, colors (low-level)
+Layer 2:  Detects corners, circles (mid-level)
+Layer 3:  Detects object parts (high-level)
+Layer 4:  Detects whole objects
+Output:   Classifies image
+
+Example for face recognition:
+  L1: Edges → L2: Eyes/Nose outlines → L3: Eye/Nose → L4: Face → Output: Who
+
+25.6 Interview Questions — Day 25
+Q1: Why are CNNs better than Dense networks for images?
+
+CNNs use local connectivity (detect local patterns), weight sharing (same filter across image → far fewer parameters), and pooling (translation invariance). For a 224×224 image, a 3×3 filter has only 9 weights vs 150K for a dense neuron. This makes CNNs efficient and effective for spatial data.
+
+Q2: What does a CNN actually learn?
+
+Lower layers learn low-level features (edges, gradients, colors). Middle layers learn mid-level patterns (textures, corners, shapes). Higher layers learn high-level semantic features (object parts). Transfer learning exploits this — features learned on ImageNet transfer to other vision tasks.
+
+
+
+📅 DAY 26 — CNN — Convolution Operation
+26.1 What is Convolution?
+A mathematical operation where a small matrix (filter/kernel) slides over the input, computing element-wise products and summing them.
+Input feature map (5×5):       Filter/Kernel (3×3):
+  1  2  3  2  1                   1  0 -1
+  4  5  6  5  4                   2  0 -2
+  7  8  9  8  7                   1  0 -1
+  4  5  6  5  4
+  1  2  3  2  1
+
+At position (0,0):
+Output = 1*1 + 2*0 + 3*(-1) +    (row 0)
+         4*2 + 5*0 + 6*(-2) +    (row 1)
+         7*1 + 8*0 + 9*(-1)      (row 2)
+       = 1 - 3 + 8 - 12 + 7 - 9 = -8
+
+Slide filter across entire input to get output feature map.
+
+26.2 Key Parameters
+Stride
+
+How many pixels to slide the filter each step
+Stride=1: overlap, larger output
+Stride=2: skip pixels, smaller output (downsampling)
+
+Padding
+
+Valid padding: No padding → output smaller than input
+Same padding: Add zeros around input → output same size as input
+
+Output Size Formula
+Output_size = floor((Input_size + 2*Padding - Kernel_size) / Stride) + 1
+
+Example: Input=28, Kernel=3, Padding=0, Stride=1:
+  Output = (28 + 0 - 3) / 1 + 1 = 26
+
+With Same padding: Padding = (Kernel-1)/2 = 1
+  Output = (28 + 2 - 3) / 1 + 1 = 28  (same!)
+
+26.3 Multiple Filters (Feature Maps)
+Each filter detects a different feature:
+
+Filter 1: detects horizontal edges
+Filter 2: detects vertical edges
+Filter 3: detects diagonal patterns
+
+With K filters → output has K channels (feature maps):
+Input: (H, W, C_in)    [Height, Width, Input channels]
+Filter: (f, f, C_in)   [filter_size, filter_size, must match input channels]
+K filters → Output: (H', W', K)   [K output feature maps]
+
+Parameters per Conv layer: f * f * C_in * K + K (biases)
+
+26.4 Famous Filters
+Vertical edge:    Horizontal edge:   Blur:
+  1  0 -1          1  2  1            1/9 1/9 1/9
+  2  0 -2          0  0  0            1/9 1/9 1/9
+  1  0 -1         -1 -2 -1            1/9 1/9 1/9
+
+Sharpening:
+  0 -1  0
+ -1  5 -1
+  0 -1  0
+CNNs learn filters automatically from data, not hardcoded.
+
+26.5 Parameter Comparison: Dense vs CNN
+Dense layer for 28×28 image:
+  Parameters = 784 × 512 = 401,408
+
+Conv layer (32 filters, 3×3, on 28×28 grayscale):
+  Parameters = 3 × 3 × 1 × 32 + 32 = 320  ← 1000x fewer!
+
+26.6 Code — Convolution from Scratch
+pythonimport numpy as np
+
+def conv2d(input_map, kernel, stride=1, padding='valid'):
+    """
+    2D Convolution operation.
+    
+    input_map: (H, W) 2D input
+    kernel: (kH, kW) filter
+    stride: step size
+    padding: 'valid' or 'same'
+    """
+    H, W = input_map.shape
+    kH, kW = kernel.shape
+    
+    if padding == 'same':
+        pad_h = (kH - 1) // 2
+        pad_w = (kW - 1) // 2
+        input_map = np.pad(input_map, ((pad_h, pad_h), (pad_w, pad_w)), 
+                          mode='constant')
+        H, W = input_map.shape
+    
+    # Output dimensions
+    out_H = (H - kH) // stride + 1
+    out_W = (W - kW) // stride + 1
+    output = np.zeros((out_H, out_W))
+    
+    for i in range(0, out_H):
+        for j in range(0, out_W):
+            # Extract patch
+            patch = input_map[i*stride:i*stride+kH, j*stride:j*stride+kW]
+            # Element-wise multiply and sum
+            output[i, j] = np.sum(patch * kernel)
+    
+    return output
+
+# Test
+image = np.random.randn(28, 28)
+vertical_edge = np.array([[1, 0, -1],
+                           [2, 0, -2],
+                           [1, 0, -1]])
+
+result = conv2d(image, vertical_edge, stride=1, padding='valid')
+print(f"Input: {image.shape}, Output: {result.shape}")  # (28,28) → (26,26)
+
+26.7 Interview Questions — Day 26
+Q1: What is a convolution operation in the context of CNNs?
+
+A filter (small weight matrix) slides over the input feature map. At each position, element-wise products of filter weights and input values are summed to produce a scalar output. Sliding over the entire input produces an output feature map. CNNs learn filter weights via backpropagation.
+
+Q2: What is the advantage of 'same' padding over 'valid'?
+
+'Same' padding preserves spatial dimensions (H and W unchanged), allowing deeper stacking of conv layers without losing spatial resolution. 'Valid' reduces dimensions at each layer, limiting depth. Same padding also ensures all input positions are covered.
+
+Q3: How many parameters does a conv layer have?
+
+filter_h × filter_w × n_input_channels × n_filters + n_filters (biases). For a 3×3 conv with 64 input channels and 128 output filters: 3 × 3 × 64 × 128 + 128 = 73,856 parameters. Compare to dense: 100% of spatial connections.
+
+
+
+📅 DAY 27 — CNN — Pooling & Architecture
+27.1 Pooling Layers
+Pooling reduces spatial dimensions (downsampling), providing:
+
+Translation invariance — small shifts in input → same output
+Reduced computation — fewer parameters in subsequent layers
+Prevention of overfitting — less information = more generalization
+
+Max Pooling (Most Common)
+Input (4×4):           Max Pooling (2×2, stride=2):
+  1  3  2  4              3  4
+  5  6  8  2      →       6  9
+  4  2  9  1
+  8  7  3  5              8  9
+
+Output (2×2): Takes maximum value in each window
+Average Pooling
+Takes average instead of max. Used in:
+  - Global Average Pooling at end of networks (replaces Flatten + Dense)
+  - When you want smoother feature maps
+Global Average Pooling (GAP)
+Reduces entire feature map to single value per channel
+Input: (H, W, C) → Output: (C,)
+Replaces Flatten + Dense → fewer parameters, better generalization
+
+27.2 Classic CNN Architecture — LeNet-5 (1998)
+Input: 32×32×1
+  ↓ Conv(6 filters, 5×5) → 28×28×6
+  ↓ MaxPool(2×2) → 14×14×6
+  ↓ Conv(16 filters, 5×5) → 10×10×16
+  ↓ MaxPool(2×2) → 5×5×16
+  ↓ Flatten → 400
+  ↓ Dense(120) → Dense(84) → Dense(10, softmax)
+
+27.3 AlexNet (2012) — ImageNet Breakthrough
+Input: 224×224×3
+  ↓ Conv(96, 11×11, stride=4) + ReLU
+  ↓ MaxPool(3×3, stride=2)
+  ↓ Conv(256, 5×5, same) + ReLU
+  ↓ MaxPool(3×3, stride=2)
+  ↓ Conv(384, 3×3, same) + ReLU  (×2)
+  ↓ Conv(256, 3×3, same) + ReLU
+  ↓ MaxPool(3×3, stride=2)
+  ↓ Flatten
+  ↓ Dense(4096, ReLU) + Dropout(0.5)
+  ↓ Dense(4096, ReLU) + Dropout(0.5)
+  ↓ Dense(1000, softmax)
+
+Key innovations: ReLU, Dropout, Data Augmentation, Multi-GPU
+
+27.4 VGGNet (2014) — Simple but Deep
+Key insight: Use only 3×3 conv filters, go deeper
+Two 3×3 convs have same receptive field as one 5×5 but fewer params
+VGG-16: 16 layers, all 3×3 filters, ~138M parameters
+
+27.5 Receptive Field
+The region of input that influences a particular neuron's output.
+
+Single 3×3 conv: receptive field = 3×3
+Two stacked 3×3 convs: receptive field = 5×5 (but 2×9=18 params vs 25)
+Three stacked 3×3: receptive field = 7×7 (but 27 params vs 49)
+
+→ Deeper with 3×3 is more efficient than using large filters!
+
+27.6 Code — CNN with Keras
+pythonimport tensorflow as tf
+from tensorflow import keras
+
+def build_cnn(input_shape=(28, 28, 1), n_classes=10):
+    """
+    Standard CNN for image classification
+    """
+    model = keras.Sequential([
+        # Block 1
+        keras.layers.Conv2D(32, kernel_size=(3, 3), padding='same',
+                           activation='relu', input_shape=input_shape),
+        keras.layers.Conv2D(32, kernel_size=(3, 3), padding='same',
+                           activation='relu'),
+        keras.layers.MaxPooling2D(pool_size=(2, 2)),
+        keras.layers.Dropout(0.25),
+        
+        # Block 2
+        keras.layers.Conv2D(64, kernel_size=(3, 3), padding='same',
+                           activation='relu'),
+        keras.layers.Conv2D(64, kernel_size=(3, 3), padding='same',
+                           activation='relu'),
+        keras.layers.MaxPooling2D(pool_size=(2, 2)),
+        keras.layers.Dropout(0.25),
+        
+        # Classifier
+        keras.layers.Flatten(),
+        keras.layers.Dense(256, activation='relu'),
+        keras.layers.Dropout(0.5),
+        keras.layers.Dense(n_classes, activation='softmax')
+    ])
+    return model
+
+# MNIST Example
+(X_train, y_train), (X_test, y_test) = keras.datasets.mnist.load_data()
+
+# Preprocess
+X_train = X_train.reshape(-1, 28, 28, 1).astype('float32') / 255.0
+X_test  = X_test.reshape(-1, 28, 28, 1).astype('float32') / 255.0
+
+model = build_cnn(input_shape=(28, 28, 1), n_classes=10)
+model.summary()
+
+model.compile(optimizer='adam', 
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+history = model.fit(X_train, y_train,
+                    validation_split=0.1,
+                    epochs=20, batch_size=128,
+                    callbacks=[keras.callbacks.EarlyStopping(patience=5,
+                                                              restore_best_weights=True)])
+
+print(f"Test Accuracy: {model.evaluate(X_test, y_test)[1]:.4f}")
+
+27.7 Interview Questions — Day 27
+Q1: Why is max pooling preferred over average pooling?
+
+Max pooling retains the most prominent feature (maximum activation) in a region, which is typically the most useful for detecting whether a feature is present. Average pooling can dilute sharp features. However, global average pooling at the network end is common.
+
+Q2: What is the receptive field of a neuron?
+
+The region of the original input that can influence a particular neuron's output. Larger receptive field = neuron integrates information from broader area. Achieved by stacking conv layers (each layer increases receptive field) or using dilated convolutions.
+
+Q3: Why does VGGNet use only 3×3 filters?
+
+Two stacked 3×3 conv layers have the same receptive field as one 5×5 conv, but fewer parameters (18 vs 25) and more non-linearity (two ReLUs instead of one). Three 3×3s match 7×7 but with 27 vs 49 parameters. Smaller filters are more efficient.
+
+
+
+📅 DAY 28 — CNN Implementation with Keras
+28.1 CIFAR-10 Classification (Advanced Example)
+pythonimport tensorflow as tf
+from tensorflow import keras
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load CIFAR-10 (32×32 RGB images, 10 classes)
+(X_train, y_train), (X_test, y_test) = keras.datasets.cifar10.load_data()
+y_train = y_train.flatten()
+y_test = y_test.flatten()
+
+class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer',
+               'dog', 'frog', 'horse', 'ship', 'truck']
+
+# Normalize to [0, 1]
+X_train = X_train.astype('float32') / 255.0
+X_test  = X_test.astype('float32') / 255.0
+
+print(f"Training: {X_train.shape}, Test: {X_test.shape}")
+
+# Data Augmentation (covered in Day 30, preview here)
+data_augmentation = keras.Sequential([
+    keras.layers.RandomFlip('horizontal'),
+    keras.layers.RandomRotation(0.1),
+    keras.layers.RandomZoom(0.1),
+    keras.layers.RandomTranslation(0.1, 0.1),
+])
+
+# Build CNN
+def build_cifar_cnn():
+    inputs = keras.Input(shape=(32, 32, 3))
+    
+    # Augment during training only
+    x = data_augmentation(inputs)
+    
+    # Block 1: 32 filters
+    x = keras.layers.Conv2D(32, 3, padding='same', activation='relu')(x)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.Conv2D(32, 3, padding='same', activation='relu')(x)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.MaxPooling2D(2)(x)
+    x = keras.layers.Dropout(0.25)(x)
+    
+    # Block 2: 64 filters
+    x = keras.layers.Conv2D(64, 3, padding='same', activation='relu')(x)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.Conv2D(64, 3, padding='same', activation='relu')(x)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.MaxPooling2D(2)(x)
+    x = keras.layers.Dropout(0.25)(x)
+    
+    # Block 3: 128 filters
+    x = keras.layers.Conv2D(128, 3, padding='same', activation='relu')(x)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.MaxPooling2D(2)(x)
+    x = keras.layers.Dropout(0.25)(x)
+    
+    # Classifier
+    x = keras.layers.GlobalAveragePooling2D()(x)  # Alternative to Flatten
+    x = keras.layers.Dense(256, activation='relu')(x)
+    x = keras.layers.Dropout(0.5)(x)
+    outputs = keras.layers.Dense(10, activation='softmax')(x)
+    
+    return keras.Model(inputs, outputs)
+
+model = build_cifar_cnn()
+model.summary()
+
+model.compile(
+    optimizer=keras.optimizers.Adam(0.001),
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = model.fit(
+    X_train, y_train,
+    validation_split=0.1,
+    epochs=100,
+    batch_size=64,
+    callbacks=[
+        keras.callbacks.EarlyStopping(patience=15, restore_best_weights=True),
+        keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=5)
+    ]
+)
+
+# Visualize filter activations
+def visualize_activations(model, image):
+    """Show what each layer 'sees'"""
+    activation_model = keras.Model(
+        inputs=model.inputs,
+        outputs=[layer.output for layer in model.layers if 'conv2d' in layer.name]
+    )
+    activations = activation_model.predict(image[np.newaxis, ...])
+    
+    for layer_name, activation in zip(
+        [l.name for l in model.layers if 'conv2d' in l.name], activations
+    ):
+        n_features = min(16, activation.shape[-1])
+        fig, axes = plt.subplots(2, n_features//2, figsize=(20, 4))
+        for i, ax in enumerate(axes.flat):
+            if i < n_features:
+                ax.imshow(activation[0, :, :, i], cmap='viridis')
+                ax.axis('off')
+        plt.suptitle(f"Layer: {layer_name}")
+        plt.show()
+
+28.2 Interview Questions — Day 28
+Q1: What is Global Average Pooling and why is it better than Flatten?
+
+GAP computes the average of each feature map (H×W → 1 per channel). It reduces (H×W×C) to (C,). Benefits: far fewer parameters than Flatten→Dense, acts as structural regularization, less overfitting. Used in modern architectures (GoogLeNet, MobileNet, ResNet).
+
+Q2: How do you visualize what a CNN has learned?
+
+Several approaches: (1) Visualize filters directly (first layer only, interpretable), (2) Activation maps — forward pass images and see which neurons fire, (3) Grad-CAM — class activation mapping showing which regions influenced prediction, (4) DeepDream — maximize activations to see what features excite neurons.
+
+
+
+📅 DAY 29 — Transfer Learning
+29.1 What is Transfer Learning?
+Using a model trained on a large dataset (e.g., ImageNet, 1.2M images, 1000 classes) as a starting point for a different (usually smaller) task.
+Why it works: Features learned on large diverse datasets (edges, textures, shapes) are general and useful for other vision tasks.
+
+29.2 Types of Transfer Learning
+Feature Extraction (Frozen base)
+Pre-trained Model (frozen weights) → Custom Output Head
+
+When to use:
+  - Small dataset (<1000 images per class)
+  - Target domain similar to source
+  - Compute limited
+Fine-tuning (Partial or full unfreezing)
+Pre-trained Model (some layers trainable) → Custom Output Head
+
+When to use:
+  - Medium dataset (1000–10000 per class)
+  - Target domain slightly different from source
+  - Computational resources available
+
+29.3 Pre-trained Models Available in Keras
+python# All pre-trained on ImageNet
+keras.applications.VGG16()
+keras.applications.VGG19()
+keras.applications.ResNet50()
+keras.applications.ResNet152V2()
+keras.applications.InceptionV3()
+keras.applications.MobileNetV2()     # Lightweight, mobile
+keras.applications.EfficientNetB7()  # State-of-the-art accuracy
+keras.applications.Xception()
+
+29.4 Code — Transfer Learning (Feature Extraction + Fine-tuning)
+pythonimport tensorflow as tf
+from tensorflow import keras
+
+# 29.4.1 PHASE 1: Feature Extraction
+# Load pre-trained MobileNetV2 (lightweight, good for starting)
+base_model = keras.applications.MobileNetV2(
+    input_shape=(224, 224, 3),
+    include_top=False,      # Don't include ImageNet classifier
+    weights='imagenet'      # Pre-trained weights
+)
+
+# Freeze ALL base model layers
+base_model.trainable = False
+
+# Build custom head
+inputs = keras.Input(shape=(224, 224, 3))
+# Preprocessing (scales pixels to [-1, 1] for MobileNetV2)
+x = keras.applications.mobilenet_v2.preprocess_input(inputs)
+x = base_model(x, training=False)  # training=False freezes BatchNorm
+x = keras.layers.GlobalAveragePooling2D()(x)
+x = keras.layers.Dropout(0.2)(x)
+outputs = keras.layers.Dense(5, activation='softmax')(x)  # 5 classes
+
+model = keras.Model(inputs, outputs)
+
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+# Phase 1 training (train only the head)
+print("Phase 1: Training head only")
+model.fit(train_dataset, validation_data=val_dataset, epochs=20,
+          callbacks=[keras.callbacks.EarlyStopping(patience=5, 
+                                                    restore_best_weights=True)])
+
+# 29.4.2 PHASE 2: Fine-tuning
+# Unfreeze top layers of base model
+base_model.trainable = True
+
+# Freeze first 100 layers, unfreeze the rest
+for layer in base_model.layers[:100]:
+    layer.trainable = False
+
+# Use MUCH smaller learning rate for fine-tuning!
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=1e-5),  # 100x smaller!
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+print("Phase 2: Fine-tuning")
+model.fit(train_dataset, validation_data=val_dataset, epochs=30,
+          callbacks=[keras.callbacks.EarlyStopping(patience=10,
+                                                    restore_best_weights=True)])
+
+29.5 How Many Layers to Unfreeze?
+Dataset size | Similarity | Strategy
+Small        | High       | Feature extraction only (freeze all)
+Small        | Low        | Feature extraction only (freeze all)
+Medium       | High       | Fine-tune top layers (unfreeze top 20-30%)
+Medium       | Low        | Fine-tune more layers (unfreeze top 50%)
+Large        | High       | Fine-tune most layers
+Large        | Low        | Train from scratch OR fine-tune all
+
+29.6 Interview Questions — Day 29
+Q1: What is transfer learning and why is it useful?
+
+Transfer learning uses knowledge (weights) from a model trained on a large task for a different (smaller) task. It's useful because: (1) requires much less labeled data, (2) much faster training, (3) often achieves better accuracy than training from scratch on small datasets. Features like edges/textures are universal.
+
+Q2: Why use a smaller learning rate for fine-tuning?
+
+Pre-trained weights are already well-optimized. Large updates would "forget" the learned features (catastrophic forgetting). Small LR makes gentle adjustments to adapt to the new domain without destroying generalizable features.
+
+Q3: What is catastrophic forgetting?
+
+When a model trained on Task B forgets what it learned for Task A. In transfer learning, if you train with too high a learning rate on new data, the pre-trained features get overwritten. Solution: small learning rate, freeze lower layers, progressive unfreezing.
+
+Q4: Difference between feature extraction and fine-tuning?
+
+Feature extraction: freeze all pre-trained weights, only train new classifier head. Fast, minimal data needed. Fine-tuning: unfreeze some/all pre-trained layers, train end-to-end with small LR. More flexible, adapts to domain shift, requires more data.
+
+
+
+📅 DAY 30 — Data Augmentation
+30.1 What is Data Augmentation?
+Creating additional training examples by applying label-preserving transformations to existing data.
+Why: Deep learning needs large amounts of data. Data augmentation artificially increases dataset size, reducing overfitting.
+
+30.2 Image Augmentation Techniques
+Geometric:
+  - Flipping (horizontal/vertical)
+  - Rotation (±10-30°)
+  - Translation/Shifting
+  - Scaling/Zooming
+  - Shearing
+  - Cropping
+
+Color/Pixel:
+  - Brightness adjustment
+  - Contrast adjustment
+  - Saturation/Hue shift
+  - Gaussian noise
+
+Advanced:
+  - Cutout (random patches set to 0)
+  - Mixup (blend two images and labels)
+  - CutMix (cut from one, paste into other)
+  - AutoAugment (learned augmentation policy)
+  - RandAugment (simplified learned augmentation)
+
+30.3 Code — Data Augmentation in Keras
+pythonimport tensorflow as tf
+from tensorflow import keras
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 30.3.1 Keras Preprocessing Layers (Recommended — runs on GPU)
+data_augmentation = keras.Sequential([
+    keras.layers.RandomFlip('horizontal'),
+    keras.layers.RandomRotation(0.15),         # ±15% rotation
+    keras.layers.RandomZoom(0.15),             # ±15% zoom
+    keras.layers.RandomTranslation(0.1, 0.1), # ±10% translation
+    keras.layers.RandomContrast(0.1),
+    keras.layers.RandomBrightness(0.1),
+])
+
+# Include in model (applied only during training)
+def build_model_with_augmentation(input_shape, n_classes):
+    inputs = keras.Input(shape=input_shape)
+    x = data_augmentation(inputs)  # augment inside model
+    x = keras.layers.Conv2D(32, 3, padding='same', activation='relu')(x)
+    x = keras.layers.MaxPooling2D()(x)
+    x = keras.layers.Conv2D(64, 3, padding='same', activation='relu')(x)
+    x = keras.layers.MaxPooling2D()(x)
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    x = keras.layers.Dense(n_classes, activation='softmax')(x)
+    return keras.Model(inputs, x)
+
+# 30.3.2 ImageDataGenerator (Legacy but widely used)
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+datagen = ImageDataGenerator(
+    rotation_range=20,
+    width_shift_range=0.15,
+    height_shift_range=0.15,
+    horizontal_flip=True,
+    zoom_range=0.15,
+    shear_range=0.1,
+    fill_mode='nearest',     # fill gaps after transformation
+    
+    # For validation — only normalize, no augmentation:
+    # validation_split=0.2  
+)
+
+# Fit on training data (computes mean/std for normalization)
+datagen.fit(X_train)
+
+# Training with generator
+history = model.fit(
+    datagen.flow(X_train, y_train, batch_size=32),
+    steps_per_epoch=len(X_train) // 32,
+    validation_data=(X_val, y_val),
+    epochs=100
+)
+
+# 30.3.3 Advanced: Mixup Augmentation
+def mixup(x1, y1, x2, y2, alpha=0.2):
+    """Mix two samples with Beta distribution coefficient"""
+    lam = np.random.beta(alpha, alpha)
+    x_mix = lam * x1 + (1 - lam) * x2
+    y_mix = lam * y1 + (1 - lam) * y2  # mix labels too!
+    return x_mix, y_mix
+
+# 30.3.4 CutOut
+def cutout(image, n_holes=1, length=16):
+    """Set random square patches to zero"""
+    H, W = image.shape[:2]
+    mask = np.ones((H, W), dtype=np.float32)
+    
+    for _ in range(n_holes):
+        y = np.random.randint(H)
+        x = np.random.randint(W)
+        y1, y2 = max(0, y - length//2), min(H, y + length//2)
+        x1, x2 = max(0, x - length//2), min(W, x + length//2)
+        mask[y1:y2, x1:x2] = 0.0
+    
+    return image * mask[:, :, np.newaxis]
+
+# Visualize augmentations
+def show_augmented(image, augmenter, n=8):
+    fig, axes = plt.subplots(2, 4, figsize=(12, 6))
+    axes.flat[0].imshow(image)
+    axes.flat[0].set_title('Original')
+    for ax in axes.flat[1:n]:
+        aug_img = augmenter(tf.expand_dims(image, 0), training=True)[0]
+        ax.imshow(aug_img.numpy().clip(0, 1))
+        ax.set_title('Augmented')
+    for ax in axes.flat:
+        ax.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+30.4 Best Practices for Data Augmentation
+
+Only augment training data — never validation or test set
+Augmentations should be realistic — don't create impossible images
+Class-dependent augmentation — vertical flipping doesn't make sense for digits
+Start mild, then increase — too aggressive augmentation = underfitting
+Domain knowledge matters — medical images: careful with flipping/rotation
+
+
+30.5 Interview Questions — Day 30
+Q1: Why is data augmentation applied only to training data?
+
+Augmentation serves to reduce overfitting by providing diverse training examples. Validation and test data should represent real-world distribution — applying augmentation would make performance estimates unreliable and inflate reported metrics.
+
+Q2: What is Mixup augmentation?
+
+Mixup (Zhang et al., 2018) creates new training samples by linearly interpolating between two training examples: x_mix = λx1 + (1-λ)x2, y_mix = λy1 + (1-λ)y2, where λ ~ Beta(α, α). Trains the network to behave linearly between training examples, improving generalization and calibration.
+
+Q3: What is the difference between online and offline augmentation?
+
+Offline: augmented images pre-generated and saved to disk (increases storage, but fast training). Online: augmentation applied on-the-fly during training (no extra storage, but slight CPU overhead). Keras's RandomFlip etc. do online augmentation — each epoch sees different augmented versions.
+
+Q4: How does data augmentation relate to regularization?
+
+Both reduce overfitting. Data augmentation effectively increases dataset size and teaches invariances. It can be seen as a form of regularization — the model can't memorize training examples because they change every epoch. In practice, augmentation + dropout + batch normalization are often combined.
+
+
+
+🔁 QUICK REVISION CHEAT SHEET
+Neural Network Fundamentals
+MP Neuron:     Binary inputs, hardcoded threshold, NOT learnable
+Perceptron:    Real inputs, learnable weights, step function, binary output
+Sigmoid Neuron: Real inputs, learnable, sigmoid output (0,1), gradient descent
+
+ANN Equation:
+  Z[l] = W[l] · A[l-1] + b[l]    ← linear
+  A[l] = g(Z[l])                  ← activation
+
+Backprop:
+  δ[L] = ŷ - y                    (output layer, cross-entropy + sigmoid)
+  δ[l] = (W[l+1]ᵀ · δ[l+1]) ⊙ g'(Z[l])
+  dW[l] = δ[l] · A[l-1]ᵀ / m
+Activation Functions
+Function | Range    | Best For
+---------|----------|------------------
+Sigmoid  | (0,1)    | Binary output only
+Tanh     | (-1,1)   | RNN hidden layers
+ReLU     | [0,∞)    | Default hidden layers ⭐
+LeakyReLU| (-∞,∞)  | Dying ReLU fix
+Softmax  | (0,1)Σ=1 | Multiclass output
+Loss Function Quick Reference
+Task                | Loss                    | Output Activation
+--------------------|-------------------------|------------------
+Binary classif.     | binary_crossentropy     | sigmoid
+Multiclass (OHE)   | categorical_crossentropy | softmax
+Multiclass (int)   | sparse_categ_crossentropy| softmax
+Regression          | mse / mae / huber        | none (linear)
+Initialization Rules
+Activation | Initialization | Scale
+-----------|----------------|------------------
+sigmoid/tanh | Glorot/Xavier  | √(2/(n_in+n_out))
+ReLU         | He/Kaiming     | √(2/n_in)  ⭐
+Optimizer Comparison
+Adam default: lr=0.001, β1=0.9, β2=0.999, ε=1e-7
+SGD default:  lr=0.01, momentum=0.9
+
+Recommendation: Start with Adam(lr=0.001)
+CNN Formulas
+Conv output size = (Input + 2*Padding - Kernel) / Stride + 1
+Conv parameters = kernel_h × kernel_w × C_in × n_filters + n_filters
+
+Receptive field:
+  1 conv 3×3 → RF = 3
+  2 conv 3×3 → RF = 5
+  3 conv 3×3 → RF = 7
+Regularization Summary
+Technique        | Mechanism                    | Keras
+-----------------|------------------------------|-------
+Dropout          | Random neuron deactivation   | layers.Dropout(rate)
+L2 (Weight decay)| Penalize large weights      | regularizers.l2(λ)
+BatchNorm        | Normalize layer inputs       | layers.BatchNormalization()
+Early Stopping   | Stop when val_loss plateaus  | callbacks.EarlyStopping()
+Data Augmentation| Increase training variety    | layers.RandomFlip(), etc.
+
+Common Hyperparameter Ranges
+Learning rate:    1e-4 to 1e-2 (log scale search)
+Batch size:       32 (default), 64, 128
+Dropout:          0.2–0.5 (hidden), lower for input
+L2 lambda:        1e-5 to 1e-2
+Neurons per layer: 64, 128, 256, 512 (powers of 2)
+
+📝 PRACTICE PROBLEMS
+🟢 Easy
+
+Implement AND, OR, NAND logic gates using an MP Neuron.
+Code a Perceptron from scratch and test on linearly separable data.
+Implement sigmoid, ReLU, tanh functions and their derivatives.
+Calculate the output dimensions of: Input(28×28×1) → Conv(32, 3×3, same) → Pool(2×2) → Conv(64, 3×3, valid).
+Count parameters in a network: [784→256→128→10].
+Implement binary cross-entropy loss from scratch.
+Build a Keras model for MNIST digit classification.
+
+🟡 Medium
+
+Implement forward propagation for a 3-layer network from scratch without any library.
+Implement backpropagation from scratch for a 2-layer network and verify with gradient checking.
+Build a CNN on CIFAR-10 using BatchNorm and Dropout, achieving >75% accuracy.
+Compare training curves of a network with and without BatchNormalization on the same dataset.
+Fine-tune MobileNetV2 on a custom 3-class image dataset (flowers, cats, dogs) with <500 images per class.
+Implement a learning rate finder and apply it to find optimal learning rate.
+Demonstrate the vanishing gradient problem: plot gradient magnitudes for a 10-layer sigmoid network vs ReLU.
+Build and compare identical architectures with Xavier vs He initialization.
+
+🔴 Hard
+
+Implement a complete mini neural network framework from scratch (forward, backward, multiple layers, minibatch GD, any activation function).
+Implement Batch Normalization forward and backward pass from scratch.
+Build ResNet-like architecture using skip connections in Keras Functional API for CIFAR-100.
+Implement Mixup data augmentation from scratch and evaluate its effect on generalization.
+Compare Adam, SGD+Momentum, and RMSProp on the same deep learning task — plot convergence speed and final accuracy.
+
+🎯 Scenario-Based
+
+Scenario: Your model achieves 99% training accuracy but only 65% validation accuracy. What are the possible causes and remedies?
+Scenario: Your loss is NaN after the first few steps. What are the possible causes? (Hint: learning rate, initialization, gradient explosion, etc.)
+Scenario: You have 500 images per class for a 3-class problem. Should you train from scratch or use transfer learning? What specific approach would you take?
+Scenario: You're training a CNN and the training loss decreases, but the validation loss first decreases then increases while training continues. What is happening and what should you do?
+Scenario: Compare two models — Model A (deeper, ReLU, He init) and Model B (shallow, sigmoid, small random init). Both have the same number of parameters. Which would you expect to train better and why?
+
+
+🏁 KEY TAKEAWAYS
+
+MP Neuron → Perceptron → Sigmoid Neuron forms the evolutionary path to modern deep learning.
+Non-linear activations are essential for learning complex patterns. ReLU is the default choice.
+Backpropagation uses chain rule to efficiently compute gradients for all parameters.
+Vanishing gradient is caused by sigmoid/tanh saturation; solved by ReLU + He init + BatchNorm.
+Adam is the default optimizer; use learning rate 0.001 as starting point.
+Batch Normalization accelerates training dramatically and reduces need for careful tuning.
+Dropout is the most effective regularization for deep networks.
+CNNs exploit spatial structure via local connectivity and parameter sharing.
+Transfer Learning is almost always better than training from scratch for vision tasks with limited data.
+Data Augmentation is free performance — always use it for image problems.
