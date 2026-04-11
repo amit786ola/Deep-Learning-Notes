@@ -1,1 +1,377 @@
+# 📘 Machine Learning - Regression (Interview Notes)
 
+---
+
+# 🔴 1. Linear Regression Model
+
+## Model Formulation
+
+[
+y = X\beta + \epsilon
+]
+
+* (y): target
+* (X): feature matrix
+* (\beta): coefficients
+* (\epsilon): error
+
+---
+
+## Closed Form Solution (OLS)
+
+[
+\beta = (X^T X)^{-1} X^T y
+]
+
+### Key Points:
+
+* Minimizes squared error
+* Requires (X^TX) to be invertible
+* Not scalable for large datasets
+
+---
+
+## Interview Answer
+
+**Q: Why OLS?**
+A: It provides a closed-form optimal solution minimizing squared error but fails with multicollinearity or large datasets.
+
+---
+
+# 🔴 2. Loss Functions
+
+---
+
+## 1. Mean Squared Error (MSE)
+
+[
+MSE = \frac{1}{n} \sum (y - \hat{y})^2
+]
+
+### Use:
+
+* When large errors are costly
+* Clean datasets
+
+### Pros:
+
+* Convex, differentiable
+
+### Cons:
+
+* Sensitive to outliers
+
+---
+
+## 2. Mean Absolute Error (MAE)
+
+[
+MAE = \frac{1}{n} \sum |y - \hat{y}|
+]
+
+### Use:
+
+* Noisy data
+* Outliers present
+
+### Pros:
+
+* Robust to outliers
+
+### Cons:
+
+* Not differentiable
+
+---
+
+## 3. RMSE
+
+[
+RMSE = \sqrt{MSE}
+]
+
+### Use:
+
+* Business interpretation (same unit as target)
+
+---
+
+## 4. Huber Loss
+
+[
+L =
+\begin{cases}
+\frac{1}{2}(y - \hat{y})^2 & \text{if small error} \
+\delta(|y - \hat{y}| - \frac{1}{2}\delta) & \text{if large error}
+\end{cases}
+]
+
+### Use:
+
+* Real-world noisy datasets
+
+---
+
+## 5. Quantile Loss
+
+[
+L = \max(\tau(y - \hat{y}), (\tau - 1)(y - \hat{y}))
+]
+
+### Use:
+
+* Forecasting
+* Prediction intervals
+
+---
+
+## Interview Answer
+
+**Q: When to use MAE vs MSE?**
+A: Use MAE for robustness to outliers, MSE when large errors need stronger penalty.
+
+---
+
+# 🔴 3. Optimization
+
+## Gradient Descent
+
+[
+\theta = \theta - \alpha \nabla J(\theta)
+]
+
+### Types:
+
+* Batch GD
+* SGD
+* Mini-batch (best in practice)
+
+---
+
+# 🔴 4. Assumptions of Linear Regression
+
+---
+
+## 1. Linearity
+
+* Relationship must be linear
+
+**Violation:** Underfitting
+**Fix:** Polynomial / tree models
+
+---
+
+## 2. Independence of Errors
+
+* No autocorrelation
+
+**Violation:** Invalid statistical inference
+**Fix:** Time-series models, lag features
+
+---
+
+## 3. Homoscedasticity
+
+* Constant variance
+
+**Violation:** Biased confidence intervals
+**Fix:** Log transform, weighted regression
+
+---
+
+## 4. No Multicollinearity
+
+* Features not highly correlated
+
+**Violation:** Unstable coefficients
+**Fix:** Remove features, Ridge, PCA
+
+---
+
+## 5. Normality of Residuals
+
+* Required for inference
+
+**Violation:** Affects hypothesis testing
+
+---
+
+# 🔴 5. Regularization
+
+---
+
+## Ridge (L2)
+
+[
+\min ||y - X\beta||^2 + \lambda ||\beta||^2
+]
+
+* Shrinks coefficients
+* Handles multicollinearity
+
+---
+
+## Lasso (L1)
+
+[
+\min ||y - X\beta||^2 + \lambda ||\beta||_1
+]
+
+* Produces sparse solutions
+* Feature selection
+
+---
+
+## ElasticNet
+
+[
+Loss = MSE + \lambda_1 L1 + \lambda_2 L2
+]
+
+---
+
+## Interview Answer
+
+**Q: Why Lasso gives feature selection?**
+A: L1 penalty forces some coefficients exactly to zero.
+
+---
+
+# 🔴 6. Evaluation Metrics
+
+---
+
+## R² Score
+
+[
+R^2 = 1 - \frac{SS_{res}}{SS_{tot}}
+]
+
+---
+
+## Adjusted R²
+
+* Penalizes unnecessary features
+
+---
+
+# 🔴 7. Diagnostics
+
+---
+
+## Residual Analysis
+
+* Residual vs fitted → Linearity
+* Q-Q plot → Normality
+* ACF plot → Independence
+
+---
+
+## VIF
+
+[
+VIF = \frac{1}{1 - R^2}
+]
+
+* VIF > 10 → multicollinearity
+
+---
+
+# 🔴 8. Bias-Variance Tradeoff
+
+* Bias → Underfitting
+* Variance → Overfitting
+
+Goal: Balance both
+
+---
+
+# 🔴 9. Edge Cases
+
+---
+
+## XᵀX not invertible
+
+* Cause: Multicollinearity
+* Fix: Ridge
+
+---
+
+## Large dataset
+
+* Use SGD
+
+---
+
+## Skewed target
+
+* Log transform
+
+---
+
+## Outliers
+
+* Use MAE / Huber
+
+---
+
+# 🔴 10. Advanced Interview Questions
+
+---
+
+### Q: Why squared error?
+
+A: Convex and differentiable → easy optimization
+
+---
+
+### Q: Why regression sensitive to outliers?
+
+A: Squaring magnifies large errors
+
+---
+
+### Q: What is multicollinearity impact?
+
+A: Unstable coefficients
+
+---
+
+### Q: When to use tree models?
+
+A: Non-linear relationships
+
+---
+
+### Q: Can regression be used for classification?
+
+A: Not ideal, use logistic regression
+
+---
+
+# 🔴 11. Industry Perspective
+
+---
+
+* Use RMSE/MAE based on business need
+* Use Quantile loss for forecasting
+* Regularization for high-dimensional data
+
+---
+
+# 🔴 12. Final Checklist
+
+Before interview, you must know:
+
+* OLS derivation intuition
+* All assumptions + violations
+* Loss functions comparison
+* Ridge vs Lasso
+* Bias-variance tradeoff
+* Diagnostics techniques
+
+---
+
+# 🚀 Next Topic
+
+👉 Logistic Regression (Classification)
