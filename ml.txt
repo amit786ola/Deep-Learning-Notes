@@ -1,4 +1,4 @@
-# 📘 Machine Learning - Regression (Interview Notes)
+# 📘 Machine Learning – Regression (Interview Notes)
 
 ---
 
@@ -6,58 +6,43 @@
 
 ## Model Formulation
 
-[
-y = X\beta + \epsilon
-]
+y = Xβ + ε
 
-* (y): target
-* (X): feature matrix
-* (\beta): coefficients
-* (\epsilon): error
+* y: target
+* X: feature matrix
+* β: coefficients
+* ε: error
 
 ---
 
 ## Closed Form Solution (OLS)
 
-[
-\beta = (X^T X)^{-1} X^T y
-]
+β = (XᵀX)⁻¹ Xᵀy
 
-### Key Points:
+### Key Points
 
-* Minimizes squared error
-* Requires (X^TX) to be invertible
-* Not scalable for large datasets
+* Derived by minimizing squared error
+* Gives Best Linear Unbiased Estimator (BLUE)
 
----
+### Limitations
 
-## Interview Answer
-
-**Q: Why OLS?**
-A: It provides a closed-form optimal solution minimizing squared error but fails with multicollinearity or large datasets.
+* Fails if XᵀX is non-invertible (multicollinearity)
+* Expensive for large datasets
 
 ---
 
 # 🔴 2. Loss Functions
 
----
-
 ## 1. Mean Squared Error (MSE)
 
-[
-MSE = \frac{1}{n} \sum (y - \hat{y})^2
-]
+MSE = (1/n) Σ(y - ŷ)²
 
-### Use:
+### Use
 
 * When large errors are costly
-* Clean datasets
+* Smooth & convex
 
-### Pros:
-
-* Convex, differentiable
-
-### Cons:
+### Problem
 
 * Sensitive to outliers
 
@@ -65,48 +50,35 @@ MSE = \frac{1}{n} \sum (y - \hat{y})^2
 
 ## 2. Mean Absolute Error (MAE)
 
-[
-MAE = \frac{1}{n} \sum |y - \hat{y}|
-]
+MAE = (1/n) Σ|y - ŷ|
 
-### Use:
+### Use
 
-* Noisy data
-* Outliers present
+* When outliers exist
 
-### Pros:
+### Problem
 
-* Robust to outliers
-
-### Cons:
-
-* Not differentiable
+* Not differentiable at zero
 
 ---
 
 ## 3. RMSE
 
-[
-RMSE = \sqrt{MSE}
-]
+RMSE = √MSE
 
-### Use:
+### Use
 
-* Business interpretation (same unit as target)
+* Same unit as target
+* Better interpretability
 
 ---
 
 ## 4. Huber Loss
 
-[
-L =
-\begin{cases}
-\frac{1}{2}(y - \hat{y})^2 & \text{if small error} \
-\delta(|y - \hat{y}| - \frac{1}{2}\delta) & \text{if large error}
-\end{cases}
-]
+* MSE for small errors
+* MAE for large errors
 
-### Use:
+### Use
 
 * Real-world noisy datasets
 
@@ -114,21 +86,11 @@ L =
 
 ## 5. Quantile Loss
 
-[
-L = \max(\tau(y - \hat{y}), (\tau - 1)(y - \hat{y}))
-]
+Used to predict percentiles
 
-### Use:
+### Use
 
-* Forecasting
-* Prediction intervals
-
----
-
-## Interview Answer
-
-**Q: When to use MAE vs MSE?**
-A: Use MAE for robustness to outliers, MSE when large errors need stronger penalty.
+* Forecasting (important)
 
 ---
 
@@ -136,28 +98,27 @@ A: Use MAE for robustness to outliers, MSE when large errors need stronger penal
 
 ## Gradient Descent
 
-[
-\theta = \theta - \alpha \nabla J(\theta)
-]
+θ = θ - α ∇J(θ)
 
-### Types:
+### Types
 
-* Batch GD
-* SGD
+* Batch
+* Stochastic
 * Mini-batch (best in practice)
 
 ---
 
 # 🔴 4. Assumptions of Linear Regression
 
----
-
 ## 1. Linearity
 
 * Relationship must be linear
+* Violation → underfitting
 
-**Violation:** Underfitting
-**Fix:** Polynomial / tree models
+Fix:
+
+* Polynomial features
+* Tree models
 
 ---
 
@@ -165,46 +126,67 @@ A: Use MAE for robustness to outliers, MSE when large errors need stronger penal
 
 * No autocorrelation
 
-**Violation:** Invalid statistical inference
-**Fix:** Time-series models, lag features
+Violation:
+
+* Common in time series
+
+Fix:
+
+* Lag features
+* Time-series models
 
 ---
 
 ## 3. Homoscedasticity
 
-* Constant variance
+* Constant variance of residuals
 
-**Violation:** Biased confidence intervals
-**Fix:** Log transform, weighted regression
+Violation:
+
+* Funnel shape
+
+Fix:
+
+* Log transformation
+* Weighted regression
 
 ---
 
 ## 4. No Multicollinearity
 
-* Features not highly correlated
+* Features should not be correlated
 
-**Violation:** Unstable coefficients
-**Fix:** Remove features, Ridge, PCA
+Violation:
+
+* Unstable coefficients
+
+Fix:
+
+* Remove features
+* Ridge regression
+* PCA
 
 ---
 
 ## 5. Normality of Residuals
 
-* Required for inference
+* Needed for statistical inference
 
-**Violation:** Affects hypothesis testing
+Violation:
+
+* Affects confidence intervals
+
+Fix:
+
+* Transform target
 
 ---
 
 # 🔴 5. Regularization
 
----
-
 ## Ridge (L2)
 
-[
-\min ||y - X\beta||^2 + \lambda ||\beta||^2
-]
+Loss = MSE + λ Σβ²
 
 * Shrinks coefficients
 * Handles multicollinearity
@@ -213,165 +195,147 @@ A: Use MAE for robustness to outliers, MSE when large errors need stronger penal
 
 ## Lasso (L1)
 
-[
-\min ||y - X\beta||^2 + \lambda ||\beta||_1
-]
+Loss = MSE + λ Σ|β|
 
-* Produces sparse solutions
 * Feature selection
+* Produces sparse model
 
 ---
 
 ## ElasticNet
 
-[
-Loss = MSE + \lambda_1 L1 + \lambda_2 L2
-]
+Combination of Ridge + Lasso
 
 ---
 
-## Interview Answer
+# 🔴 6. Bias-Variance Tradeoff
 
-**Q: Why Lasso gives feature selection?**
-A: L1 penalty forces some coefficients exactly to zero.
+* Bias: error due to simplicity
+* Variance: error due to complexity
 
----
+Goal:
 
-# 🔴 6. Evaluation Metrics
-
----
-
-## R² Score
-
-[
-R^2 = 1 - \frac{SS_{res}}{SS_{tot}}
-]
-
----
-
-## Adjusted R²
-
-* Penalizes unnecessary features
+* Balance both
 
 ---
 
 # 🔴 7. Diagnostics
 
----
+## Residual Plots
 
-## Residual Analysis
+* Detect non-linearity
+* Detect heteroscedasticity
 
-* Residual vs fitted → Linearity
-* Q-Q plot → Normality
-* ACF plot → Independence
+## Q-Q Plot
 
----
+* Check normality
 
 ## VIF
 
-[
-VIF = \frac{1}{1 - R^2}
-]
+VIF = 1 / (1 - R²)
 
-* VIF > 10 → multicollinearity
+* > 10 indicates multicollinearity
 
 ---
 
-# 🔴 8. Bias-Variance Tradeoff
+# 🔴 8. Important Edge Cases
 
-* Bias → Underfitting
-* Variance → Overfitting
-
-Goal: Balance both
-
----
-
-# 🔴 9. Edge Cases
+* XᵀX not invertible → use Ridge
+* Large dataset → use SGD
+* Outliers → use MAE/Huber
+* Skewed data → log transform
 
 ---
 
-## XᵀX not invertible
+# 🔴 9. Key Interview Questions
 
-* Cause: Multicollinearity
-* Fix: Ridge
+## Basic
 
----
-
-## Large dataset
-
-* Use SGD
+* What is regression?
+* Difference between regression and classification
 
 ---
 
-## Skewed target
+## Intermediate
 
-* Log transform
-
----
-
-## Outliers
-
-* Use MAE / Huber
+* Assumptions of linear regression
+* Difference between MAE and MSE
+* What is multicollinearity?
 
 ---
 
-# 🔴 10. Advanced Interview Questions
+## Advanced
+
+### Why MSE penalizes outliers?
+
+Because errors are squared
 
 ---
 
-### Q: Why squared error?
+### Ridge vs Lasso
 
-A: Convex and differentiable → easy optimization
-
----
-
-### Q: Why regression sensitive to outliers?
-
-A: Squaring magnifies large errors
+* Ridge shrinks
+* Lasso selects features
 
 ---
 
-### Q: What is multicollinearity impact?
+### Why Lasso gives sparse solution?
 
-A: Unstable coefficients
-
----
-
-### Q: When to use tree models?
-
-A: Non-linear relationships
+L1 penalty forces coefficients to zero
 
 ---
 
-### Q: Can regression be used for classification?
+### What is bias-variance tradeoff?
 
-A: Not ideal, use logistic regression
-
----
-
-# 🔴 11. Industry Perspective
+Balance between underfitting and overfitting
 
 ---
 
-* Use RMSE/MAE based on business need
-* Use Quantile loss for forecasting
-* Regularization for high-dimensional data
+### Why R² is not reliable?
+
+Always increases with more features
 
 ---
 
-# 🔴 12. Final Checklist
+### Adjusted R²
 
-Before interview, you must know:
-
-* OLS derivation intuition
-* All assumptions + violations
-* Loss functions comparison
-* Ridge vs Lasso
-* Bias-variance tradeoff
-* Diagnostics techniques
+Penalizes unnecessary features
 
 ---
 
-# 🚀 Next Topic
+### When to use MAE vs RMSE?
 
-👉 Logistic Regression (Classification)
+* MAE → outliers
+* RMSE → large errors matter
+
+---
+
+### Why Linear Regression is sensitive to outliers?
+
+Because of squared error
+
+---
+
+### What if assumptions fail?
+
+* Model inference becomes unreliable
+* Predictions may degrade
+
+---
+
+# 🔴 10. Practical (Industry Perspective)
+
+* Use RMSE for evaluation
+* Use Quantile Loss for forecasting
+* Use Ridge/Lasso for high-dimensional data
+
+---
+
+# 🔴 11. Key Takeaways
+
+* Understand assumptions deeply
+* Know loss functions + use cases
+* Know when model fails
+* Always connect to business problem
+
+---
